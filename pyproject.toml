@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "miai-core"
-version = "0.1.0"
+version = "0.2.0"
 description = "MIAI core utilities: configuration, logging, IO, exceptions, typing."
 readme = "README.md"
 license = { text = "MIT" }
@@ -23,6 +23,7 @@ classifiers = [
 dependencies = [
     "pydantic>=2.0",
     "pyyaml>=6.0",
+    "pydicom>=2.4",
 ]
 
 [project.optional-dependencies]
@@ -40,7 +41,7 @@ Homepage = "https://github.com/juancis44/MIAI"
 Issues = "https://github.com/juancis44/MIAI/issues"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/miai_core"]
+packages = ["src/miai_core", "src/miai_dicom"]
 
 [tool.black]
 line-length = 100

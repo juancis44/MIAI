@@ -12,7 +12,7 @@ functional and tested before moving to the next.
 - [x] API design principles
 - [x] Repository scaffold (this commit)
 
-## Phase 1 — `miai-core` *(current)*
+## Phase 1 — `miai-core`
 
 Common utilities every other package depends on:
 
@@ -24,14 +24,14 @@ Common utilities every other package depends on:
 - [x] General utilities
 - [x] Test suite and CI
 
-## Phase 2 — `miai-dicom`
+## Phase 2 — `miai-dicom` *(current)*
 
-- [ ] Reading DICOM
-- [ ] Writing DICOM
-- [ ] Metadata extraction
-- [ ] Anonymization
-- [ ] Series loading
-- [ ] Validation
+- [x] Reading DICOM
+- [x] Writing DICOM
+- [x] Metadata extraction
+- [x] Anonymization
+- [x] Series loading
+- [x] Validation
 
 ## Phase 3 — `miai-pipeline`
 

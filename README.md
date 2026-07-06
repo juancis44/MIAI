@@ -9,9 +9,8 @@ medical imaging workflows. Rather than replacing existing libraries such as
 software architecture focused on research reproducibility, software
 engineering best practices, and clinical applicability.
 
-> **Status:** Phase 1 — `miai-core` implemented (config, logging, IO,
-> exceptions, typing, utilities). See [docs/roadmap.md](docs/roadmap.md)
-> for what's next.
+> **Status:** Phase 2 — `miai-core` and `miai-dicom` implemented. See
+> [docs/roadmap.md](docs/roadmap.md) for what's next.
 
 ## Why MIAI?
 
@@ -67,7 +66,7 @@ cd MIAI
 pip install -e ".[dev]"
 ```
 
-Quick example:
+Quick example — `miai-core` configuration and logging:
 
 ```python
 from miai_core import MIAIBaseConfig, get_logger
@@ -79,6 +78,17 @@ class TrainingConfig(MIAIBaseConfig):
 config = TrainingConfig.from_yaml("configs/train.yaml")
 logger = get_logger(__name__)
 logger.info("Loaded config: %s", config)
+```
+
+Quick example — `miai-dicom` reading, metadata, and de-identification:
+
+```python
+from miai_dicom import read_dicom, extract_metadata, anonymize, write_dicom
+
+dataset = read_dicom("scan.dcm")
+metadata = extract_metadata(dataset)
+deidentified = anonymize(dataset)
+write_dicom(deidentified, "scan_anonymized.dcm")
 ```
 
 ## License
