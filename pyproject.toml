@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "miai-core"
-version = "0.0.1"
+version = "0.1.0"
 description = "MIAI core utilities: configuration, logging, IO, exceptions, typing."
 readme = "README.md"
 license = { text = "MIT" }
@@ -53,7 +53,9 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM"]
-ignore = []
+# UP017: prefer datetime.UTC alias. Skipped so timezone.utc keeps working
+# identically on any Python >= 3.11 without relying on the newer alias.
+ignore = ["UP017"]
 
 [tool.mypy]
 python_version = "3.11"

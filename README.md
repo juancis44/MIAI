@@ -9,8 +9,9 @@ medical imaging workflows. Rather than replacing existing libraries such as
 software architecture focused on research reproducibility, software
 engineering best practices, and clinical applicability.
 
-> **Status:** Phase 0 — Project Design. No functional code has been released
-> yet. See [docs/roadmap.md](docs/roadmap.md) for what's next.
+> **Status:** Phase 1 — `miai-core` implemented (config, logging, IO,
+> exceptions, typing, utilities). See [docs/roadmap.md](docs/roadmap.md)
+> for what's next.
 
 ## Why MIAI?
 
@@ -58,10 +59,26 @@ separate repositories later as the ecosystem matures.
 
 ## Installation
 
-Not yet published. Once `miai-core` reaches an initial release:
+`miai-core` is not yet published to PyPI. Install from source:
 
 ```bash
-pip install -e .
+git clone https://github.com/juancis44/MIAI.git
+cd MIAI
+pip install -e ".[dev]"
+```
+
+Quick example:
+
+```python
+from miai_core import MIAIBaseConfig, get_logger
+
+class TrainingConfig(MIAIBaseConfig):
+    learning_rate: float
+    batch_size: int
+
+config = TrainingConfig.from_yaml("configs/train.yaml")
+logger = get_logger(__name__)
+logger.info("Loaded config: %s", config)
 ```
 
 ## License

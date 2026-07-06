@@ -3,7 +3,7 @@
 MIAI is built step by step, one phase at a time. Each phase should be
 functional and tested before moving to the next.
 
-## Phase 0 — Project Design *(current)*
+## Phase 0 — Project Design
 
 - [x] Vision and mission
 - [x] Ecosystem architecture
@@ -12,17 +12,17 @@ functional and tested before moving to the next.
 - [x] API design principles
 - [x] Repository scaffold (this commit)
 
-## Phase 1 — `miai-core`
+## Phase 1 — `miai-core` *(current)*
 
 Common utilities every other package depends on:
 
-- [ ] Configuration system (YAML-based, Pydantic-validated)
-- [ ] Logging
-- [ ] IO utilities
-- [ ] Exceptions hierarchy
-- [ ] Typing utilities
-- [ ] General utilities
-- [ ] Test suite and CI
+- [x] Configuration system (YAML-based, Pydantic-validated)
+- [x] Logging
+- [x] IO utilities
+- [x] Exceptions hierarchy
+- [x] Typing utilities
+- [x] General utilities
+- [x] Test suite and CI
 
 ## Phase 2 — `miai-dicom`
 
