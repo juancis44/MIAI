@@ -49,3 +49,60 @@ def make_dicom_dataset(
         dataset.InstanceNumber = instance_number
 
     return dataset
+
+
+def make_dicom_series(
+    directory,
+    *,
+    num_slices: int = 4,
+    rows: int = 16,
+    columns: int = 16,
+    pixel_spacing: tuple[float, float] = (1.0, 1.0),
+    slice_thickness: float = 2.0,
+    modality: str = "CT",
+    series_instance_uid: str | None = None,
+):
+    """Write a synthetic, multi-slice DICOM series (with real pixel data)
+    to ``directory`` and return the list of file paths written.
+
+    Used by miai_pipeline tests, which need a series SimpleITK's
+    ``ImageSeriesReader`` can actually load (geometry + pixel data), not
+    just the tag-only datasets ``make_dicom_dataset`` provides.
+    """
+    import numpy as np
+    from pydicom.uid import generate_uid
+
+    series_instance_uid = series_instance_uid or generate_uid()
+    study_instance_uid = generate_uid()
+    paths = []
+
+    for i in range(num_slices):
+        dataset = make_dicom_dataset(
+            series_instance_uid=series_instance_uid,
+            study_instance_uid=study_instance_uid,
+            modality=modality,
+            instance_number=i + 1,
+            rows=rows,
+            columns=columns,
+        )
+        dataset.PixelSpacing = list(pixel_spacing)
+        dataset.SliceThickness = slice_thickness
+        dataset.ImageOrientationPatient = [1, 0, 0, 0, 1, 0]
+        dataset.ImagePositionPatient = [0.0, 0.0, float(i) * slice_thickness]
+        dataset.SamplesPerPixel = 1
+        dataset.PhotometricInterpretation = "MONOCHROME2"
+        dataset.BitsAllocated = 16
+        dataset.BitsStored = 16
+        dataset.HighBit = 15
+        dataset.PixelRepresentation = 1
+        dataset.RescaleIntercept = 0
+        dataset.RescaleSlope = 1
+
+        pixel_array = np.ones((rows, columns), dtype=np.int16) * (i + 1) * 100
+        dataset.PixelData = pixel_array.tobytes()
+
+        path = directory / f"slice_{i:03d}.dcm"
+        dataset.save_as(str(path))
+        paths.append(path)
+
+    return paths

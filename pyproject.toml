@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "miai-core"
-version = "0.2.0"
+version = "0.3.0"
 description = "MIAI core utilities: configuration, logging, IO, exceptions, typing."
 readme = "README.md"
 license = { text = "MIT" }
@@ -24,6 +24,8 @@ dependencies = [
     "pydantic>=2.0",
     "pyyaml>=6.0",
     "pydicom>=2.4",
+    "SimpleITK>=2.3",
+    "numpy>=1.24",
 ]
 
 [project.optional-dependencies]
@@ -41,7 +43,7 @@ Homepage = "https://github.com/juancis44/MIAI"
 Issues = "https://github.com/juancis44/MIAI/issues"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/miai_core", "src/miai_dicom"]
+packages = ["src/miai_core", "src/miai_dicom", "src/miai_pipeline"]
 
 [tool.black]
 line-length = 100
@@ -56,12 +58,24 @@ src = ["src", "tests"]
 select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM"]
 # UP017: prefer datetime.UTC alias. Skipped so timezone.utc keeps working
 # identically on any Python >= 3.11 without relying on the newer alias.
-ignore = ["UP017"]
+# N813: "import SimpleITK as sitk" is the library's own documented
+# convention (used throughout its official docs/examples).
+ignore = ["UP017", "N813"]
 
 [tool.mypy]
 python_version = "3.11"
 strict = true
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# SimpleITK ships no type stubs, so every call into it is "untyped"
+# from mypy's point of view. Relax that specific strict check for the
+# two modules that call SimpleITK directly, rather than repo-wide.
+module = [
+    "miai_pipeline.stages.dicom_to_nifti",
+    "miai_pipeline.stages.preprocessing",
+]
+disallow_untyped_calls = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

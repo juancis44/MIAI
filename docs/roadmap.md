@@ -24,7 +24,7 @@ Common utilities every other package depends on:
 - [x] General utilities
 - [x] Test suite and CI
 
-## Phase 2 — `miai-dicom` *(current)*
+## Phase 2 — `miai-dicom`
 
 - [x] Reading DICOM
 - [x] Writing DICOM
@@ -33,13 +33,21 @@ Common utilities every other package depends on:
 - [x] Series loading
 - [x] Validation
 
-## Phase 3 — `miai-pipeline`
+## Phase 3 — `miai-pipeline` *(current)*
 
 Clinical workflow orchestration:
 
 ```
 DICOM → NIfTI → Preprocessing → Dataset → Training → Inference → Evaluation
 ```
+
+- [x] Config-driven `Pipeline` / `PipelineStage` orchestration framework
+- [x] `dicom_to_nifti` stage (DICOM series → NIfTI, via SimpleITK)
+- [x] `preprocessing` stage (resampling, intensity normalization)
+- [x] `dataset` stage (manifest generation, train/val/test split)
+- [ ] `training` stage (interface defined; concrete implementation in Phase 4)
+- [ ] `inference` stage (interface defined; concrete implementation in Phase 4)
+- [ ] `evaluation` stage (interface defined; concrete implementation alongside miai-evaluation)
 
 ## Phase 4 — Integration with MONAI
 

@@ -16,7 +16,7 @@ from miai_core.exceptions import (
 )
 from miai_core.logging import configure_logging, get_logger
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = [
     "MIAIBaseConfig",

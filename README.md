@@ -9,8 +9,8 @@ medical imaging workflows. Rather than replacing existing libraries such as
 software architecture focused on research reproducibility, software
 engineering best practices, and clinical applicability.
 
-> **Status:** Phase 2 — `miai-core` and `miai-dicom` implemented. See
-> [docs/roadmap.md](docs/roadmap.md) for what's next.
+> **Status:** Phase 3 — `miai-core`, `miai-dicom`, and `miai-pipeline`
+> implemented. See [docs/roadmap.md](docs/roadmap.md) for what's next.
 
 ## Why MIAI?
 
@@ -89,6 +89,20 @@ dataset = read_dicom("scan.dcm")
 metadata = extract_metadata(dataset)
 deidentified = anonymize(dataset)
 write_dicom(deidentified, "scan_anonymized.dcm")
+```
+
+Quick example — `miai-pipeline` config-driven orchestration:
+
+```python
+from miai_pipeline import Pipeline, PipelineConfig, PipelineContext
+
+config = PipelineConfig.from_yaml("configs/pipeline.yaml")
+pipeline = Pipeline.from_config(config)
+
+context = PipelineContext()
+context.set("dicom_dir", "data/raw_dicom")
+result = pipeline.run(context)
+print(result.require("manifest_path"))
 ```
 
 ## License
