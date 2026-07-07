@@ -63,7 +63,10 @@ select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM"]
 ignore = ["UP017", "N813"]
 
 [tool.mypy]
-python_version = "3.11"
+# No python_version pin: let mypy infer it from whichever interpreter
+# is running (matches the CI matrix's 3.11/3.12 jobs). Pinning it
+# caused mypy to reject numpy's own 3.12-only stub syntax when run
+# under Python 3.12 with a lower target version.
 strict = true
 ignore_missing_imports = true
 
