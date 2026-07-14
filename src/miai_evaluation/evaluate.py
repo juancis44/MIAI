@@ -64,19 +64,18 @@ def evaluate_predictions(
         raise EvaluationError("prediction_paths is empty; nothing to evaluate.")
 
     per_case: list[dict[str, object]] = []
+    all_metrics: list[dict[str, float]] = []
     for pred_path, gt_path in zip(prediction_paths, ground_truth_paths, strict=True):
         prediction = _load_mask(pred_path)
         ground_truth = _load_mask(gt_path)
-        case_metrics: dict[str, object] = dict(
-            compute_case_metrics(prediction, ground_truth, config)
-        )
-        case_metrics["case"] = Path(pred_path).name
-        per_case.append(case_metrics)
+        case_metrics = compute_case_metrics(prediction, ground_truth, config)
+        all_metrics.append(case_metrics)
+        per_case.append({"case": Path(pred_path).name, **case_metrics})
         logger.info("Metrics for %s: %s", pred_path, case_metrics)
 
-    metric_names = [k for k in per_case[0] if k != "case"]
+    metric_names = list(all_metrics[0])
     mean_metrics = {
-        name: sum(float(c[name]) for c in per_case) / len(per_case) for name in metric_names
+        name: sum(m[name] for m in all_metrics) / len(all_metrics) for name in metric_names
     }
 
     report: dict[str, object] = {"per_case": per_case, "mean": mean_metrics}
