@@ -47,9 +47,9 @@ DICOM → NIfTI → Preprocessing → Dataset → Training → Inference → Eva
 - [x] `dataset` stage (manifest generation, train/val/test split)
 - [x] `training` stage (interface defined in Phase 3; concrete implementation in Phase 4)
 - [x] `inference` stage (interface defined in Phase 3; concrete implementation in Phase 4)
-- [ ] `evaluation` stage (interface defined; concrete implementation alongside miai-evaluation)
+- [x] `evaluation` stage (concrete implementation alongside `miai-evaluation`)
 
-## Phase 4 — Integration with MONAI *(current)*
+## Phase 4 — Integration with MONAI
 
 - [x] `miai-transforms`: config-driven MONAI transform pipelines
 - [x] `miai-datasets`: manifest -> MONAI `Dataset`/`CacheDataset`/`DataLoader`
@@ -59,7 +59,17 @@ DICOM → NIfTI → Preprocessing → Dataset → Training → Inference → Eva
   concrete implementations, wired to the three packages above
 - [x] `dataset` stage: optional `label_context_key` for supervised manifests
 
-## Phase 5 — Advanced modules
+## `miai-evaluation` — Dice / Hausdorff distance metrics
+
+Closes out the `evaluation` stage left open in Phase 3/4:
+
+- [x] `miai_evaluation.metrics`: Dice similarity coefficient, Hausdorff distance (HD95 by default)
+- [x] `miai_evaluation.evaluate`: file-based `evaluate_predictions`, reading prediction/ground-truth
+  NIfTI pairs via SimpleITK and aggregating per-case metrics into a summary report
+- [x] `miai_pipeline.stages.evaluation.EvaluationStage`: concrete implementation, replacing the
+  Phase 3 interface
+
+## Phase 5 — Advanced modules *(current)*
 
 - [ ] Registration
 - [ ] Diffusion

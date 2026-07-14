@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "miai-core"
-version = "0.4.0"
+version = "0.5.0"
 description = "MIAI core utilities: configuration, logging, IO, exceptions, typing."
 readme = "README.md"
 license = { text = "MIT" }
@@ -52,6 +52,7 @@ packages = [
     "src/miai_transforms",
     "src/miai_datasets",
     "src/miai_segmentation",
+    "src/miai_evaluation",
 ]
 
 [tool.black]
@@ -88,6 +89,7 @@ module = [
     "miai_pipeline.stages.preprocessing",
     "miai_segmentation.infer",
     "miai_transforms.sitk_transforms",
+    "miai_evaluation.evaluate",
 ]
 disallow_untyped_calls = false
 
@@ -103,8 +105,10 @@ module = [
     "miai_segmentation.models",
     "miai_segmentation.train",
     "miai_segmentation.infer",
+    "miai_evaluation.metrics",
     "miai_pipeline.stages.training",
     "miai_pipeline.stages.inference",
+    "miai_pipeline.stages.evaluation",
 ]
 disallow_untyped_calls = false
 disallow_untyped_defs = false

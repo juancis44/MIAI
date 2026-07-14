@@ -16,9 +16,9 @@ As of Phase 4, training
 (:class:`~miai_pipeline.stages.inference.InferenceStage`) are concrete,
 MONAI-backed implementations (see :mod:`miai_transforms`,
 :mod:`miai_datasets`, and :mod:`miai_segmentation`). Evaluation
-(:class:`~miai_pipeline.stages.evaluation.EvaluationStage`) remains an
-interface only; its concrete implementation lands alongside
-``miai-evaluation`` in a later phase. See docs/roadmap.md.
+(:class:`~miai_pipeline.stages.evaluation.EvaluationStage`) is also
+concrete, backed by :mod:`miai_evaluation` (Dice / Hausdorff distance
+metrics). See docs/roadmap.md.
 """
 
 from miai_pipeline.config import PipelineConfig, StageConfig
@@ -27,7 +27,7 @@ from miai_pipeline.exceptions import PipelineError, StageError, UnknownStageErro
 from miai_pipeline.pipeline import Pipeline
 from miai_pipeline.stage import PipelineStage
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 __all__ = [
     "Pipeline",

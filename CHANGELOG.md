@@ -5,6 +5,29 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-07-15
+
+### Added
+
+- `miai-evaluation`: closes out the `evaluation` stage left open since
+  Phase 3.
+  - `miai_evaluation.metrics`: `MetricsConfig` and `compute_case_metrics`
+    -- Dice similarity coefficient and Hausdorff distance (95th
+    percentile / "HD95" by default), via `monai.metrics`.
+  - `miai_evaluation.evaluate`: `evaluate_predictions`, a file-based
+    runner that reads prediction/ground-truth NIfTI pairs via
+    SimpleITK (consistent with the rest of MIAI's image I/O),
+    aggregates per-case metrics into a summary report, and optionally
+    writes it as JSON.
+  - `miai_pipeline.stages.evaluation.EvaluationStage`: concrete
+    implementation (previously `NotImplementedError`), reading
+    `prediction_paths` and the `manifest["test"]` ground truth labels
+    (requires the manifest to have been built with
+    `DatasetStage`'s `label_context_key`).
+  - All three pipeline stages (`training`, `inference`, `evaluation`)
+    are now concrete -- the clinical workflow interface defined in
+    Phase 3 is fully implemented end to end.
+
 ## [0.4.0] - 2026-07-14
 
 ### Added
