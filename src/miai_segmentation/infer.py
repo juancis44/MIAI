@@ -101,14 +101,19 @@ def run_inference(
                     f"({len(source_paths)})."
                 )
             inputs = batch["image"].to(device)
-            logits = sliding_window_inference(
+            raw_output = sliding_window_inference(
                 inputs=inputs,
                 roi_size=config.roi_size,
                 sw_batch_size=config.sw_batch_size,
                 predictor=model,
                 overlap=config.overlap,
             )
-            probs = torch.sigmoid(logits)
+            if not isinstance(raw_output, torch.Tensor):
+                raise SegmentationError(
+                    "Expected the model to return a single tensor from "
+                    f"sliding_window_inference, got {type(raw_output).__name__}."
+                )
+            probs = torch.sigmoid(raw_output)
             mask = (probs > config.threshold).squeeze(0).squeeze(0).to(torch.uint8).cpu().numpy()
 
             reference_path = source_paths[idx]

@@ -109,6 +109,16 @@ module = [
 disallow_untyped_calls = false
 disallow_untyped_defs = false
 
+[[tool.mypy.overrides]]
+# monai's submodules (monai.transforms, monai.data, monai.losses, ...)
+# import their public names into each __init__.py without listing them
+# in __all__, which mypy strict's implicit-reexport check treats as
+# "not actually exported" by default (attr-defined errors on every
+# import from monai). Relax that specific check for monai itself,
+# rather than adding a type: ignore to every import site.
+module = "monai.*"
+implicit_reexport = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra -q --cov=src --cov-report=term-missing"

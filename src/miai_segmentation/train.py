@@ -124,7 +124,9 @@ def train_model(
                     labels_list = [post_label(i) for i in decollate_batch(labels)]
                     dice_metric(y_pred=outputs_list, y=labels_list)
 
-                metric = dice_metric.aggregate().item()
+                aggregated = dice_metric.aggregate()
+                metric_tensor = aggregated[0] if isinstance(aggregated, tuple) else aggregated
+                metric = metric_tensor.item()
                 dice_metric.reset()
                 logger.info("Epoch %d/%d - val Dice: %.4f", epoch + 1, config.max_epochs, metric)
 
