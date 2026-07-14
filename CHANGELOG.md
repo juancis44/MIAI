@@ -5,6 +5,34 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-07-14
+
+### Added
+
+- Phase 4: MONAI integration -- reference binary 3D segmentation.
+  - `miai_transforms`: `TransformConfig` / `TransformSpec` and
+    `build_transforms`, a named registry (`TRANSFORM_REGISTRY`) of
+    MONAI dictionary-based transforms composed from YAML.
+  - `miai_datasets`: `manifest_split_to_data_dicts` (normalizes a
+    `miai_pipeline` manifest split into MONAI data dicts), plus
+    `build_dataset` / `build_dataloader` wrapping
+    `monai.data.Dataset` / `CacheDataset` / `DataLoader`.
+  - `miai_segmentation`: `build_unet` (MONAI `UNet`), `train_model`
+    (Dice loss + Adam + Dice metric training loop with best-checkpoint
+    saving), and `run_inference` (sliding-window inference, writing
+    predictions as NIfTI with the source case's spatial metadata).
+  - `miai_pipeline.stages.training.TrainingStage` and
+    `.stages.inference.InferenceStage`: concrete implementations
+    replacing the Phase 3 interfaces, wired to the three packages
+    above. `EvaluationStage` remains an interface (lands with
+    `miai-evaluation`).
+  - `miai_pipeline.stages.dataset.DatasetStage`: new optional
+    `label_context_key` config field, producing
+    `{"image": ..., "label": ...}` manifest entries for supervised
+    tasks instead of plain path strings (backward compatible: omitting
+    it keeps the Phase 3 behavior).
+  - Adds `torch`, `monai`, and `nibabel` as dependencies.
+
 ## [0.3.0] - 2026-07-07
 
 ### Added

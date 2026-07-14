@@ -92,3 +92,48 @@ def test_dataset_uses_configured_context_key(tmp_path: Path) -> None:
 
     total = len(manifest["train"]) + len(manifest["val"]) + len(manifest["test"])
     assert total == 5
+
+
+def _labels(n: int) -> list[Path]:
+    return [Path(f"/data/case_{i}_label.nii.gz") for i in range(n)]
+
+
+def test_dataset_with_label_context_key_produces_image_label_dicts(tmp_path: Path) -> None:
+    stage = DatasetStage(
+        DatasetConfig(
+            manifest_path=str(tmp_path / "manifest.json"),
+            context_key="preprocessed_paths",
+            label_context_key="label_paths",
+            val_fraction=0.0,
+            test_fraction=0.0,
+        )
+    )
+
+    ctx = PipelineContext()
+    ctx.set("preprocessed_paths", _cases(3))
+    ctx.set("label_paths", _labels(3))
+
+    manifest = stage.run(ctx).require("manifest")
+
+    assert len(manifest["train"]) == 3
+    for entry in manifest["train"]:
+        assert set(entry) == {"image", "label"}
+        assert entry["image"].endswith(".nii.gz")
+        assert entry["label"].endswith("_label.nii.gz")
+
+
+def test_dataset_label_context_key_length_mismatch_raises(tmp_path: Path) -> None:
+    stage = DatasetStage(
+        DatasetConfig(
+            manifest_path=str(tmp_path / "manifest.json"),
+            context_key="preprocessed_paths",
+            label_context_key="label_paths",
+        )
+    )
+
+    ctx = PipelineContext()
+    ctx.set("preprocessed_paths", _cases(3))
+    ctx.set("label_paths", _labels(2))
+
+    with pytest.raises(ConfigError):
+        stage.run(ctx)

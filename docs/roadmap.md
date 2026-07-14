@@ -33,7 +33,7 @@ Common utilities every other package depends on:
 - [x] Series loading
 - [x] Validation
 
-## Phase 3 — `miai-pipeline` *(current)*
+## Phase 3 — `miai-pipeline`
 
 Clinical workflow orchestration:
 
@@ -45,16 +45,19 @@ DICOM → NIfTI → Preprocessing → Dataset → Training → Inference → Eva
 - [x] `dicom_to_nifti` stage (DICOM series → NIfTI, via SimpleITK)
 - [x] `preprocessing` stage (resampling, intensity normalization)
 - [x] `dataset` stage (manifest generation, train/val/test split)
-- [ ] `training` stage (interface defined; concrete implementation in Phase 4)
-- [ ] `inference` stage (interface defined; concrete implementation in Phase 4)
+- [x] `training` stage (interface defined in Phase 3; concrete implementation in Phase 4)
+- [x] `inference` stage (interface defined in Phase 3; concrete implementation in Phase 4)
 - [ ] `evaluation` stage (interface defined; concrete implementation alongside miai-evaluation)
 
-## Phase 4 — Integration with MONAI
+## Phase 4 — Integration with MONAI *(current)*
 
-- [ ] Dataset wrappers
-- [ ] Transforms
-- [ ] Training utilities
-- [ ] Inference
+- [x] `miai-transforms`: config-driven MONAI transform pipelines
+- [x] `miai-datasets`: manifest -> MONAI `Dataset`/`CacheDataset`/`DataLoader`
+- [x] `miai-segmentation`: reference binary 3D segmentation (MONAI `UNet`,
+  Dice loss/metric training loop, sliding-window inference)
+- [x] `miai_pipeline.stages.training.TrainingStage` / `.inference.InferenceStage`
+  concrete implementations, wired to the three packages above
+- [x] `dataset` stage: optional `label_context_key` for supervised manifests
 
 ## Phase 5 — Advanced modules
 

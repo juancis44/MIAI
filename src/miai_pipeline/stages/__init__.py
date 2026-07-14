@@ -8,9 +8,9 @@ from miai_pipeline.stage import PipelineStage
 from miai_pipeline.stages.dataset import DatasetConfig, DatasetStage
 from miai_pipeline.stages.dicom_to_nifti import DicomToNiftiConfig, DicomToNiftiStage
 from miai_pipeline.stages.evaluation import EvaluationStage
-from miai_pipeline.stages.inference import InferenceStage
+from miai_pipeline.stages.inference import InferenceStage, InferenceStageConfig
 from miai_pipeline.stages.preprocessing import PreprocessingConfig, PreprocessingStage
-from miai_pipeline.stages.training import TrainingStage
+from miai_pipeline.stages.training import TrainingStage, TrainingStageConfig
 
 #: Maps a :class:`~miai_pipeline.config.StageConfig.type` string to the
 #: stage class that implements it. Used by
@@ -35,6 +35,8 @@ __all__ = [
     "DatasetStage",
     "DatasetConfig",
     "TrainingStage",
+    "TrainingStageConfig",
     "InferenceStage",
+    "InferenceStageConfig",
     "EvaluationStage",
 ]

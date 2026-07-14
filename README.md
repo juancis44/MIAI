@@ -9,8 +9,10 @@ medical imaging workflows. Rather than replacing existing libraries such as
 software architecture focused on research reproducibility, software
 engineering best practices, and clinical applicability.
 
-> **Status:** Phase 3 — `miai-core`, `miai-dicom`, and `miai-pipeline`
-> implemented. See [docs/roadmap.md](docs/roadmap.md) for what's next.
+> **Status:** Phase 4 — `miai-core`, `miai-dicom`, `miai-pipeline`,
+> `miai-transforms`, `miai-datasets`, and `miai-segmentation` implemented
+> (reference binary 3D segmentation on MONAI). See
+> [docs/roadmap.md](docs/roadmap.md) for what's next.
 
 ## Why MIAI?
 

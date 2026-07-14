@@ -1,6 +1,10 @@
-"""Shared pytest fixtures for miai_dicom tests."""
+"""Shared pytest fixtures and synthetic-data helpers, used across
+miai_dicom, miai_pipeline, miai_datasets, and miai_segmentation tests.
+"""
 
 from __future__ import annotations
+
+from pathlib import Path
 
 from pydicom.dataset import Dataset, FileDataset, FileMetaDataset
 from pydicom.uid import ExplicitVRLittleEndian, generate_uid
@@ -106,3 +110,60 @@ def make_dicom_series(
         paths.append(path)
 
     return paths
+
+
+def make_synthetic_volume_pair(
+    directory,
+    *,
+    name: str = "case0",
+    size: tuple[int, int, int] = (16, 16, 16),
+    spacing: tuple[float, float, float] = (1.0, 1.0, 1.0),
+):
+    """Write a synthetic image + binary label NIfTI pair to ``directory``.
+
+    Used by miai_datasets / miai_segmentation tests, which need real
+    files on disk for MONAI's ``LoadImaged`` transform to read (not just
+    in-memory arrays). The label is a solid cube in the center of an
+    otherwise-empty volume; the image is that same cube (scaled) plus
+    Gaussian noise, so a model has a real, easy-to-fit signal to learn
+    from in tests that train for a couple of epochs.
+
+    Args:
+        directory: Directory the two files are written under (created
+            if missing).
+        name: Case identifier used in the output filenames.
+        size: Volume shape as ``(depth, height, width)``, matching
+            SimpleITK's array convention.
+        spacing: Voxel spacing in millimeters.
+
+    Returns:
+        ``(image_path, label_path)``.
+    """
+    import numpy as np
+    import SimpleITK as sitk
+
+    directory = Path(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+
+    rng = np.random.default_rng(0)
+    depth, height, width = size
+    label_arr = np.zeros((depth, height, width), dtype=np.uint8)
+    d0, d1 = depth // 4, depth * 3 // 4
+    h0, h1 = height // 4, height * 3 // 4
+    w0, w1 = width // 4, width * 3 // 4
+    label_arr[d0:d1, h0:h1, w0:w1] = 1
+
+    image_arr = label_arr.astype(np.float32) * 2.0 + rng.normal(0, 0.1, size=size).astype(
+        np.float32
+    )
+
+    image = sitk.GetImageFromArray(image_arr)
+    image.SetSpacing(spacing)
+    label = sitk.GetImageFromArray(label_arr)
+    label.CopyInformation(image)
+
+    image_path = directory / f"{name}_image.nii.gz"
+    label_path = directory / f"{name}_label.nii.gz"
+    sitk.WriteImage(image, str(image_path))
+    sitk.WriteImage(label, str(label_path))
+    return image_path, label_path

@@ -26,8 +26,14 @@ class DatasetConfig(MIAIBaseConfig):
             The remainder goes to the training split.
         seed: Random seed for the shuffle, so the split is reproducible.
         context_key: Which context key holds the list of case file
-            paths to split — typically ``"preprocessed_paths"``, but
+            paths to split -- typically ``"preprocessed_paths"``, but
             can be set to ``"nifti_paths"`` to skip preprocessing.
+        label_context_key: Optional context key holding a list of label
+            (ground truth) file paths, aligned index-for-index with
+            ``context_key``. If set, each manifest entry becomes a
+            ``{"image": ..., "label": ...}`` mapping instead of a plain
+            path string, which :mod:`miai_datasets` reads for
+            supervised training/evaluation.
     """
 
     manifest_path: str
@@ -35,6 +41,7 @@ class DatasetConfig(MIAIBaseConfig):
     test_fraction: float = 0.0
     seed: int = 42
     context_key: str = "preprocessed_paths"
+    label_context_key: str | None = None
 
 
 class DatasetStage(PipelineStage):
@@ -43,10 +50,14 @@ class DatasetStage(PipelineStage):
     Reads:
         ``<config.context_key>`` (``list[Path]``, default
         ``"preprocessed_paths"``): the cases to split.
+        ``<config.label_context_key>`` (``list[Path]``, optional): the
+        label file for each case, same order as ``<config.context_key>``.
 
     Writes:
-        ``manifest`` (``dict[str, list[str]]``): the split, keyed by
-        ``"train"``, ``"val"``, ``"test"``.
+        ``manifest`` (``dict[str, list]``): the split, keyed by
+        ``"train"``, ``"val"``, ``"test"``. Each entry is a path string,
+        or -- when ``config.label_context_key`` is set -- a
+        ``{"image": ..., "label": ...}`` mapping.
         ``manifest_path`` (``str``): where the manifest was written.
     """
 
@@ -64,6 +75,17 @@ class DatasetStage(PipelineStage):
             )
 
         cases: list[Path] = context.require(self.config.context_key)
+
+        labels: list[Path] | None = None
+        if self.config.label_context_key is not None:
+            labels = context.require(self.config.label_context_key)
+            if len(labels) != len(cases):
+                raise ConfigError(
+                    f"'{self.config.label_context_key}' has {len(labels)} entries but "
+                    f"'{self.config.context_key}' has {len(cases)}; they must be aligned "
+                    "one label per case."
+                )
+
         indices = list(range(len(cases)))
         random.Random(self.config.seed).shuffle(indices)
 
@@ -75,10 +97,15 @@ class DatasetStage(PipelineStage):
         val_idx = indices[n_test : n_test + n_val]
         train_idx = indices[n_test + n_val :]
 
+        def _entries(idxs: list[int]) -> list[object]:
+            if labels is None:
+                return [str(cases[i]) for i in idxs]
+            return [{"image": str(cases[i]), "label": str(labels[i])} for i in idxs]
+
         manifest = {
-            "train": [str(cases[i]) for i in train_idx],
-            "val": [str(cases[i]) for i in val_idx],
-            "test": [str(cases[i]) for i in test_idx],
+            "train": _entries(train_idx),
+            "val": _entries(val_idx),
+            "test": _entries(test_idx),
         }
         logger.info(
             "Dataset split: %d train, %d val, %d test",

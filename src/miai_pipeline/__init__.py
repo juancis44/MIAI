@@ -11,12 +11,14 @@ list from a YAML :class:`~miai_pipeline.config.PipelineConfig`, so an
 experiment is defined by its config file rather than by editing code
 (see docs/vision.md, "Reproducibility first").
 
-Training, inference, and evaluation are defined here as interfaces only
-(:class:`~miai_pipeline.stages.training.TrainingStage`,
-:class:`~miai_pipeline.stages.inference.InferenceStage`,
-:class:`~miai_pipeline.stages.evaluation.EvaluationStage`) — concrete
-implementations land in Phase 4 once MONAI is integrated. See
-docs/roadmap.md.
+As of Phase 4, training
+(:class:`~miai_pipeline.stages.training.TrainingStage`) and inference
+(:class:`~miai_pipeline.stages.inference.InferenceStage`) are concrete,
+MONAI-backed implementations (see :mod:`miai_transforms`,
+:mod:`miai_datasets`, and :mod:`miai_segmentation`). Evaluation
+(:class:`~miai_pipeline.stages.evaluation.EvaluationStage`) remains an
+interface only; its concrete implementation lands alongside
+``miai-evaluation`` in a later phase. See docs/roadmap.md.
 """
 
 from miai_pipeline.config import PipelineConfig, StageConfig
@@ -25,7 +27,7 @@ from miai_pipeline.exceptions import PipelineError, StageError, UnknownStageErro
 from miai_pipeline.pipeline import Pipeline
 from miai_pipeline.stage import PipelineStage
 
-__version__ = "0.1.0"
+__version__ = "0.4.0"
 
 __all__ = [
     "Pipeline",
