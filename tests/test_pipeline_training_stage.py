@@ -18,7 +18,6 @@ _UNET_CONFIG = UNetConfig(channels=(4, 8), strides=(2,), num_res_units=0)
 
 _LOAD_TRANSFORMS = [
     TransformSpec(name="load_image", params={"keys": ["image", "label"]}),
-    TransformSpec(name="ensure_channel_first", params={"keys": ["image", "label"]}),
     TransformSpec(name="ensure_type", params={"keys": ["image", "label"], "dtype": torch.float32}),
 ]
 

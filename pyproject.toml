@@ -28,7 +28,6 @@ dependencies = [
     "numpy>=1.24",
     "torch>=2.2",
     "monai>=1.3",
-    "nibabel>=5.2",
 ]
 
 [project.optional-dependencies]
@@ -88,6 +87,7 @@ module = [
     "miai_pipeline.stages.dicom_to_nifti",
     "miai_pipeline.stages.preprocessing",
     "miai_segmentation.infer",
+    "miai_transforms.sitk_transforms",
 ]
 disallow_untyped_calls = false
 
@@ -98,6 +98,7 @@ disallow_untyped_calls = false
 # checks for the modules that do so, rather than repo-wide.
 module = [
     "miai_transforms.compose",
+    "miai_transforms.sitk_transforms",
     "miai_datasets.loaders",
     "miai_segmentation.models",
     "miai_segmentation.train",

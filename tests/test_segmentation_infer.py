@@ -6,18 +6,18 @@ import pytest
 import SimpleITK as sitk
 import torch
 from monai.data import DataLoader, Dataset
-from monai.transforms import Compose, EnsureChannelFirstd, EnsureTyped, LoadImaged
+from monai.transforms import Compose, EnsureTyped
 
 from conftest import make_synthetic_volume_pair
 from miai_segmentation.exceptions import SegmentationError
 from miai_segmentation.infer import InferenceConfig, run_inference
 from miai_segmentation.models import UNetConfig, build_unet
+from miai_transforms.sitk_transforms import LoadImageSitkd
 
 _UNET_CONFIG = UNetConfig(channels=(4, 8), strides=(2,), num_res_units=0)
 _IMAGE_ONLY_TRANSFORMS = Compose(
     [
-        LoadImaged(keys=["image"]),
-        EnsureChannelFirstd(keys=["image"]),
+        LoadImageSitkd(keys=["image"]),
         EnsureTyped(keys=["image"], dtype=torch.float32),
     ]
 )

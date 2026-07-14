@@ -7,33 +7,32 @@ from typing import Any
 from monai.transforms import (
     Compose,
     CropForegroundd,
-    EnsureChannelFirstd,
     EnsureTyped,
-    LoadImaged,
-    NormalizeIntensityd,
-    Orientationd,
     RandCropByPosNegLabeld,
     RandFlipd,
     RandRotate90d,
     RandShiftIntensityd,
     ScaleIntensityRanged,
-    Spacingd,
 )
 
 from miai_transforms.config import TransformConfig, TransformSpec
 from miai_transforms.exceptions import TransformError
+from miai_transforms.sitk_transforms import LoadImageSitkd
 
 #: Maps a :class:`~miai_transforms.config.TransformSpec.name` to the
-#: MONAI dictionary-based transform class it builds. Only the subset of
-#: MONAI's transforms needed by MIAI's reference segmentation workflow
-#: is registered here; extend as new pipelines need more transforms.
+#: transform class it builds. ``"load_image"`` uses MIAI's own
+#: SimpleITK-backed :class:`~miai_transforms.sitk_transforms.LoadImageSitkd`
+#: rather than MONAI's ``LoadImaged`` (which requires an extra reader
+#: backend such as nibabel or itk that MIAI does not depend on); the
+#: rest are MONAI's own array/tensor-only transforms, which need no
+#: reader-specific metadata to work. Spatial resampling/orientation is
+#: intentionally not offered here -- it's handled upstream by
+#: :class:`~miai_pipeline.stages.preprocessing.PreprocessingStage` via
+#: SimpleITK. Only the subset needed by MIAI's reference segmentation
+#: workflow is registered here; extend as new pipelines need more.
 TRANSFORM_REGISTRY: dict[str, type[Any]] = {
-    "load_image": LoadImaged,
-    "ensure_channel_first": EnsureChannelFirstd,
-    "orientation": Orientationd,
-    "spacing": Spacingd,
+    "load_image": LoadImageSitkd,
     "scale_intensity_range": ScaleIntensityRanged,
-    "normalize_intensity": NormalizeIntensityd,
     "crop_foreground": CropForegroundd,
     "rand_crop_by_pos_neg_label": RandCropByPosNegLabeld,
     "rand_flip": RandFlipd,
@@ -55,7 +54,7 @@ def _build_one(spec: TransformSpec) -> Any:
 
 
 def build_transforms(config: TransformConfig) -> Compose:
-    """Build a composed MONAI transform pipeline from a config.
+    """Build a composed transform pipeline from a config.
 
     Args:
         config: The ordered list of transform specs to compose.
@@ -67,6 +66,6 @@ def build_transforms(config: TransformConfig) -> Compose:
     Raises:
         TransformError: If a transform name is not registered in
             :data:`TRANSFORM_REGISTRY`, or its parameters do not match
-            the underlying MONAI transform's constructor.
+            the underlying transform's constructor.
     """
     return Compose([_build_one(spec) for spec in config.transforms])

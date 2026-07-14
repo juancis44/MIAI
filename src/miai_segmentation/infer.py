@@ -55,18 +55,12 @@ def run_inference(
     volume that copies the spatial metadata (spacing/origin/direction)
     of the corresponding entry in ``source_paths``.
 
-    The prediction array is transposed from MONAI's array convention
-    (``(W, H, D)``, matching the NIfTI affine's axis order, as returned
-    by its nibabel/ITK-backed readers) to SimpleITK's ``(D, H, W)``
-    convention before being wrapped with
-    :func:`SimpleITK.GetImageFromArray`. This is only valid when the
-    transform pipeline does not reorder spatial axes between the source
-    file and the model's output (e.g. no ``orientation`` transform) --
-    true of MIAI's reference workflow, where resampling/orientation is
-    already handled upstream by
-    :class:`~miai_pipeline.stages.preprocessing.PreprocessingStage`. A
-    transform pipeline that reorients axes will produce a spatially
-    incorrect prediction file under this function.
+    Both the input images (loaded by
+    :class:`~miai_transforms.sitk_transforms.LoadImageSitkd`) and the
+    predictions written here use SimpleITK's own array convention
+    (``(D, H, W)``, matching :func:`SimpleITK.GetArrayFromImage`)
+    throughout, so no axis reordering is needed between what the model
+    sees and what gets written back out.
 
     Args:
         model: An untrained model with the same architecture used to
@@ -115,14 +109,11 @@ def run_inference(
                 overlap=config.overlap,
             )
             probs = torch.sigmoid(logits)
-            mask_whd = (
-                (probs > config.threshold).squeeze(0).squeeze(0).to(torch.uint8).cpu().numpy()
-            )
-            mask_dhw = mask_whd.transpose(2, 1, 0)
+            mask = (probs > config.threshold).squeeze(0).squeeze(0).to(torch.uint8).cpu().numpy()
 
             reference_path = source_paths[idx]
             reference_image = sitk.ReadImage(str(reference_path))
-            prediction_image = sitk.GetImageFromArray(mask_dhw)
+            prediction_image = sitk.GetImageFromArray(mask)
             prediction_image.CopyInformation(reference_image)
 
             stem = Path(reference_path).name.removesuffix(".nii.gz").removesuffix(".nii")

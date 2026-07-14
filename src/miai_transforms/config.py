@@ -30,8 +30,6 @@ class TransformConfig(MIAIBaseConfig):
         transforms:
           - name: load_image
             params: {keys: [image, label]}
-          - name: ensure_channel_first
-            params: {keys: [image, label]}
           - name: rand_flip
             params: {keys: [image, label], prob: 0.5, spatial_axis: 0}
     """

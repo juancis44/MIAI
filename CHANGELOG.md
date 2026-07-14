@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
     `miai_pipeline` manifest split into MONAI data dicts), plus
     `build_dataset` / `build_dataloader` wrapping
     `monai.data.Dataset` / `CacheDataset` / `DataLoader`.
+  - `miai_transforms.sitk_transforms.LoadImageSitkd`: MIAI's own
+    SimpleITK-backed image loader, used in place of MONAI's
+    `LoadImaged` (which needs an extra reader backend such as
+    nibabel or itk). Keeps every array in SimpleITK's `(D, H, W)`
+    axis convention end to end, so `run_inference` needs no axis
+    transposition when writing predictions back out.
   - `miai_segmentation`: `build_unet` (MONAI `UNet`), `train_model`
     (Dice loss + Adam + Dice metric training loop with best-checkpoint
     saving), and `run_inference` (sliding-window inference, writing
@@ -31,7 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
     `{"image": ..., "label": ...}` manifest entries for supervised
     tasks instead of plain path strings (backward compatible: omitting
     it keeps the Phase 3 behavior).
-  - Adds `torch`, `monai`, and `nibabel` as dependencies.
+  - Adds `torch` and `monai` as dependencies (SimpleITK, already a
+    dependency since Phase 2, remains MIAI's only image I/O library).
 
 ## [0.3.0] - 2026-07-07
 
