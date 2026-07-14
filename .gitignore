@@ -44,3 +44,6 @@ mlruns/
 wandb/
 outputs/
 lightning_logs/
+
+# graphify (regenerate with `graphify update .`)
+graphify-out/
