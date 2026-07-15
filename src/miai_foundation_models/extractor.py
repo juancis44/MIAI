@@ -171,9 +171,9 @@ class FeatureExtractor:
         stacked = torch.cat(slice_embeddings, dim=0)
 
         if self.config.slice_pooling == "mean":
-            return cast(torch.Tensor, stacked.mean(dim=0))
+            return stacked.mean(dim=0)
         if self.config.slice_pooling == "max":
-            return cast(torch.Tensor, stacked.max(dim=0).values)
+            return stacked.max(dim=0).values
         raise FoundationModelError(f"Unknown slice_pooling strategy: {self.config.slice_pooling!r}")
 
 
