@@ -6,7 +6,12 @@ from __future__ import annotations
 
 from miai_pipeline.stage import PipelineStage
 from miai_pipeline.stages.dataset import DatasetConfig, DatasetStage
+from miai_pipeline.stages.denoising import DenoisingStage, DenoisingStageConfig
 from miai_pipeline.stages.dicom_to_nifti import DicomToNiftiConfig, DicomToNiftiStage
+from miai_pipeline.stages.diffusion_training import (
+    DiffusionTrainingStage,
+    DiffusionTrainingStageConfig,
+)
 from miai_pipeline.stages.evaluation import EvaluationStage, EvaluationStageConfig
 from miai_pipeline.stages.inference import InferenceStage, InferenceStageConfig
 from miai_pipeline.stages.preprocessing import PreprocessingConfig, PreprocessingStage
@@ -26,6 +31,8 @@ STAGE_REGISTRY: dict[str, type[PipelineStage]] = {
     TrainingStage.name: TrainingStage,
     InferenceStage.name: InferenceStage,
     EvaluationStage.name: EvaluationStage,
+    DiffusionTrainingStage.name: DiffusionTrainingStage,
+    DenoisingStage.name: DenoisingStage,
 }
 
 __all__ = [
@@ -44,4 +51,8 @@ __all__ = [
     "InferenceStageConfig",
     "EvaluationStage",
     "EvaluationStageConfig",
+    "DiffusionTrainingStage",
+    "DiffusionTrainingStageConfig",
+    "DenoisingStage",
+    "DenoisingStageConfig",
 ]

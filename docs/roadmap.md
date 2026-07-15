@@ -80,7 +80,18 @@ Closes out the `evaluation` stage left open in Phase 3/4:
   - [x] `miai_pipeline.stages.registration.RegistrationStage`: optional pipeline stage, aligning
     every case onto a common fixed reference image (e.g. an atlas) between `preprocessing` and
     `dataset`
-- [ ] Diffusion
+- [x] Diffusion
+  - [x] `miai_diffusion.schedule`: `NoiseSchedule` -- forward (`q_sample`) and reverse
+    (`p_sample_step`) DDPM process (Ho, Jain & Abbeel 2020), linear or cosine beta schedule
+  - [x] `miai_diffusion.model`: `DiffusionUNet` -- compact 3D UNet with sinusoidal timestep
+    conditioning, implemented from scratch in PyTorch (no MONAI generative extension)
+  - [x] `miai_diffusion.train`: `train_diffusion_model` -- standard DDPM noise-prediction
+    training loop
+  - [x] `miai_diffusion.denoise`: `denoise_volume` / `run_denoising` -- SDEdit-style denoising
+    of real noisy volumes via partial reverse diffusion from a configurable start timestep
+  - [x] `miai_pipeline.stages.diffusion_training.DiffusionTrainingStage` /
+    `.denoising.DenoisingStage`: optional pipeline stages, outside the main segmentation
+    workflow
 - [ ] Foundation models
 - [ ] Deployment
 
