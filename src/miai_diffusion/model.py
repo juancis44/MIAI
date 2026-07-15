@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from typing import cast
 
 import torch
 from torch import nn
@@ -75,7 +76,7 @@ class _ResBlock(nn.Module):
         h = self.conv1(torch.relu(self.norm1(x)))
         h = h + self.time_proj(t_emb)[:, :, None, None, None]
         h = self.conv2(torch.relu(self.norm2(h)))
-        return h + self.skip(x)
+        return h + cast(torch.Tensor, self.skip(x))
 
 
 class DiffusionUNet(nn.Module):
@@ -149,7 +150,7 @@ class DiffusionUNet(nn.Module):
             h = torch.cat([h, skip], dim=1)
             h = block(h, t_emb)
 
-        return self.out_conv(torch.relu(self.out_norm(h)))
+        return cast(torch.Tensor, self.out_conv(torch.relu(self.out_norm(h))))
 
 
 def build_diffusion_unet(config: DiffusionUNetConfig) -> DiffusionUNet:

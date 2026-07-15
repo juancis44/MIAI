@@ -9,7 +9,7 @@ corresponding reverse (denoising) step, following Ho, Jain & Abbeel,
 from __future__ import annotations
 
 import math
-from typing import Literal
+from typing import Literal, cast
 
 import torch
 
@@ -113,13 +113,13 @@ class NoiseSchedule:
             alpha_t = self.alphas[t]
             alpha_bar_t = self.alpha_bars[t]
 
-            mean = (1 / alpha_t.sqrt()) * (
+            mean = alpha_t.sqrt().reciprocal() * (
                 x_t - (beta_t / (1 - alpha_bar_t).sqrt()) * predicted_noise
             )
 
             if t == 0:
-                return mean
+                return cast(torch.Tensor, mean)
 
             noise = torch.randn_like(x_t)
             sigma_t = beta_t.sqrt()
-            return mean + sigma_t * noise
+            return cast(torch.Tensor, mean + sigma_t * noise)
