@@ -10,6 +10,7 @@ from miai_pipeline.stages.dicom_to_nifti import DicomToNiftiConfig, DicomToNifti
 from miai_pipeline.stages.evaluation import EvaluationStage, EvaluationStageConfig
 from miai_pipeline.stages.inference import InferenceStage, InferenceStageConfig
 from miai_pipeline.stages.preprocessing import PreprocessingConfig, PreprocessingStage
+from miai_pipeline.stages.registration import RegistrationStage, RegistrationStageConfig
 from miai_pipeline.stages.training import TrainingStage, TrainingStageConfig
 
 #: Maps a :class:`~miai_pipeline.config.StageConfig.type` string to the
@@ -20,6 +21,7 @@ from miai_pipeline.stages.training import TrainingStage, TrainingStageConfig
 STAGE_REGISTRY: dict[str, type[PipelineStage]] = {
     DicomToNiftiStage.name: DicomToNiftiStage,
     PreprocessingStage.name: PreprocessingStage,
+    RegistrationStage.name: RegistrationStage,
     DatasetStage.name: DatasetStage,
     TrainingStage.name: TrainingStage,
     InferenceStage.name: InferenceStage,
@@ -32,6 +34,8 @@ __all__ = [
     "DicomToNiftiConfig",
     "PreprocessingStage",
     "PreprocessingConfig",
+    "RegistrationStage",
+    "RegistrationStageConfig",
     "DatasetStage",
     "DatasetConfig",
     "TrainingStage",

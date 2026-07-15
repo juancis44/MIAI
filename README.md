@@ -10,12 +10,12 @@ software architecture focused on research reproducibility, software
 engineering best practices, and clinical applicability.
 
 > **Status:** `miai-core`, `miai-dicom`, `miai-pipeline`,
-> `miai-transforms`, `miai-datasets`, `miai-segmentation`, and
-> `miai-evaluation` implemented -- the full clinical workflow (DICOM ->
-> NIfTI -> Preprocessing -> Dataset -> Training -> Inference ->
-> Evaluation) runs end to end. See [docs/roadmap.md](docs/roadmap.md)
-> for what's next (Phase 5: registration, diffusion, foundation models,
-> deployment).
+> `miai-transforms`, `miai-datasets`, `miai-segmentation`,
+> `miai-evaluation`, and `miai-registration` implemented -- the full
+> clinical workflow (DICOM -> NIfTI -> Preprocessing -> [Registration]
+> -> Dataset -> Training -> Inference -> Evaluation) runs end to end.
+> See [docs/roadmap.md](docs/roadmap.md) for what's next (Phase 5:
+> diffusion, foundation models, deployment).
 
 ## Why MIAI?
 

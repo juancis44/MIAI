@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "miai-core"
-version = "0.5.0"
+version = "0.6.0"
 description = "MIAI core utilities: configuration, logging, IO, exceptions, typing."
 readme = "README.md"
 license = { text = "MIT" }
@@ -54,6 +54,7 @@ packages = [
     "src/miai_datasets",
     "src/miai_segmentation",
     "src/miai_evaluation",
+    "src/miai_registration",
 ]
 
 [tool.black]
@@ -88,9 +89,13 @@ ignore_missing_imports = true
 module = [
     "miai_pipeline.stages.dicom_to_nifti",
     "miai_pipeline.stages.preprocessing",
+    "miai_pipeline.stages.registration",
     "miai_segmentation.infer",
     "miai_transforms.sitk_transforms",
     "miai_evaluation.evaluate",
+    "miai_registration.register",
+    "miai_registration.apply",
+    "miai_registration.transform_io",
 ]
 disallow_untyped_calls = false
 
