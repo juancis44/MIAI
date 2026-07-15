@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "miai-core"
-version = "0.8.0"
+version = "0.9.0"
 description = "MIAI core utilities: configuration, logging, IO, exceptions, typing."
 readme = "README.md"
 license = { text = "MIT" }
@@ -32,6 +32,7 @@ dependencies = [
     "transformers>=4.40",
     "huggingface_hub>=0.23",
     "Pillow>=10.0",
+    "onnx>=1.14",
 ]
 
 [project.optional-dependencies]
@@ -60,6 +61,7 @@ packages = [
     "src/miai_registration",
     "src/miai_diffusion",
     "src/miai_foundation_models",
+    "src/miai_deploy",
 ]
 
 [tool.black]
@@ -127,6 +129,8 @@ module = [
     "miai_pipeline.stages.diffusion_training",
     "miai_foundation_models.extractor",
     "miai_pipeline.stages.feature_extraction",
+    "miai_pipeline.stages.export",
+    "miai_deploy.export",
 ]
 disallow_untyped_calls = false
 disallow_untyped_defs = false

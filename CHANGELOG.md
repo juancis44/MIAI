@@ -5,6 +5,25 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.9.0] - 2026-07-15
+
+### Added
+
+- `miai-deploy`: fourth and final Phase 5 package -- portable export and bundling of
+  trained models. Reference task is portable export (TorchScript/ONNX artifact), not
+  live model serving.
+  - `miai_deploy.export`: `ExportConfig` + `export_model` -- loads a checkpoint into a
+    given model, traces it (`torch.jit.trace`) or exports it (`torch.onnx.export`) to a
+    portable inference artifact.
+  - `miai_deploy.bundle`: `BundleMetadata` + `write_bundle` -- exports a model and writes
+    it alongside a `metadata.yaml` (name/version/description) as a single bundle
+    directory, so an exported model is never handed off without knowing what produced it.
+  - `miai_pipeline.stages.export.ExportStage`: optional pipeline stage exporting the
+    segmentation model trained by `TrainingStage`, writing `deploy_bundle_path`.
+  - New dependency: `onnx`.
+- Phase 5 ("Advanced modules": Registration, Diffusion, Foundation models, Deployment)
+  is now complete.
+
 ## [0.8.0] - 2026-07-15
 
 ### Added

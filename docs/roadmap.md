@@ -102,7 +102,18 @@ Closes out the `evaluation` stage left open in Phase 3/4:
   - [x] `miai_pipeline.stages.feature_extraction.FeatureExtractionStage`: optional pipeline
     stage, outside the main segmentation workflow, for embedding-based downstream tasks
     (retrieval, clustering, simple classification) without fine-tuning
-- [ ] Deployment
+- [x] Deployment
+  - [x] `miai_deploy.export`: `export_model` -- exports a trained model to a portable
+    inference format, TorchScript (`torch.jit.trace`, no extra dependency) or ONNX
+    (`torch.onnx.export`); reference task is portable export, not live model serving
+  - [x] `miai_deploy.bundle`: `BundleMetadata` + `write_bundle` -- packages an exported
+    model together with reproducibility metadata (name/version/description) as a single
+    bundle directory
+  - [x] `miai_pipeline.stages.export.ExportStage`: optional pipeline stage exporting the
+    trained segmentation model produced by `TrainingStage`, writing `deploy_bundle_path`
+  - New dependency: `onnx`
+
+Phase 5 is now complete.
 
 ## Working principle
 
