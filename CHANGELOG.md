@@ -5,6 +5,27 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.10.0] - 2026-07-16
+
+### Added
+
+- `miai-reconstruction`: first Phase 6 package -- MRI reconstruction from (simulated)
+  k-space.
+  - `miai_reconstruction.kspace`: `KSpaceReconstructionConfig` +
+    `simulate_kspace`/`reconstruct_from_kspace` -- forward/inverse FFT via `torch.fft`
+    (no new dependency for the core algorithm); `UndersamplingConfig` +
+    `build_undersampling_mask`/`apply_undersampling` -- zero-filled reconstruction from
+    an undersampled acquisition, with a fully-sampled k-space center (fastMRI-style mask).
+  - `miai_reconstruction.metrics`: `reconstruction_quality` -- PSNR/SSIM via
+    scikit-image, for photometric reconstruction-quality comparisons (distinct from
+    `miai_evaluation`'s segmentation-mask metrics).
+  - `miai_reconstruction.run`: `run_kspace_reconstruction` -- SimpleITK-only I/O,
+    simulates k-space from an existing volume and reconstructs it.
+  - `miai_pipeline.stages.reconstruction.ReconstructionStage`: optional pipeline stage,
+    writing `reconstructed_paths`.
+  - New dependency: `scikit-image`.
+- Phase 6 ("Further ecosystem packages") begun.
+
 ## [0.9.0] - 2026-07-15
 
 ### Added

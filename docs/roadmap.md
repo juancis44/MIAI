@@ -69,7 +69,7 @@ Closes out the `evaluation` stage left open in Phase 3/4:
 - [x] `miai_pipeline.stages.evaluation.EvaluationStage`: concrete implementation, replacing the
   Phase 3 interface
 
-## Phase 5 — Advanced modules *(current)*
+## Phase 5 — Advanced modules
 
 - [x] Registration
   - [x] `miai_registration.register`: `register_images` -- rigid/affine/bspline registration via
@@ -114,6 +114,25 @@ Closes out the `evaluation` stage left open in Phase 3/4:
   - New dependency: `onnx`
 
 Phase 5 is now complete.
+
+## Phase 6 — Further ecosystem packages *(current)*
+
+- [x] Reconstruction
+  - [x] `miai_reconstruction.kspace`: `simulate_kspace` / `reconstruct_from_kspace` --
+    MRI reconstruction from (simulated) k-space via `torch.fft`, no new dependency for
+    the core algorithm; `build_undersampling_mask` / `apply_undersampling` -- zero-filled
+    reconstruction from an undersampled (accelerated-MRI-style) acquisition, center
+    fraction always fully sampled
+  - [x] `miai_reconstruction.metrics`: `reconstruction_quality` -- PSNR/SSIM via
+    scikit-image (new dependency), for evaluating reconstruction quality (distinct from
+    `miai_evaluation`'s Dice/Hausdorff, which compare segmentation masks, not images)
+  - [x] `miai_reconstruction.run`: `run_kspace_reconstruction` -- SimpleITK-only I/O,
+    simulates k-space from an existing volume and reconstructs it (same "simulate, then
+    invert" approach `miai_diffusion` uses, since MIAI's datasets are NIfTI/DICOM, not
+    raw scanner k-space)
+  - [x] `miai_pipeline.stages.reconstruction.ReconstructionStage`: optional pipeline
+    stage, writing `reconstructed_paths`
+  - New dependency: `scikit-image`
 
 ## Working principle
 
