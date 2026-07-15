@@ -88,6 +88,10 @@ def export_model(
             traced = torch.jit.trace(model, example_input)
         traced.save(str(out_path))
     elif config.format == "onnx":
+        # dynamo=False pins the TorchScript-tracing-based ONNX exporter
+        # (needs only the ``onnx`` package) instead of torch's newer
+        # dynamo-based exporter, which additionally requires the
+        # ``onnxscript`` package that MIAI does not otherwise depend on.
         with torch.no_grad():
             torch.onnx.export(
                 model,
@@ -96,6 +100,7 @@ def export_model(
                 opset_version=config.opset_version,
                 input_names=["input"],
                 output_names=["output"],
+                dynamo=False,
             )
     else:
         raise DeployError(f"Unknown export format: {config.format!r}")
