@@ -20,7 +20,7 @@ either).
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, cast
 
 import torch
 
@@ -58,7 +58,7 @@ def simulate_kspace(
     config = config or KSpaceReconstructionConfig()
     shifted = torch.fft.ifftshift(image)
     kspace = torch.fft.fftn(shifted, norm=config.norm)
-    return torch.fft.fftshift(kspace)
+    return cast(torch.Tensor, torch.fft.fftshift(kspace))
 
 
 def reconstruct_from_kspace(
@@ -81,7 +81,7 @@ def reconstruct_from_kspace(
     shifted = torch.fft.ifftshift(kspace)
     image = torch.fft.ifftn(shifted, norm=config.norm)
     image = torch.fft.fftshift(image)
-    return image.abs()
+    return cast(torch.Tensor, image.abs())
 
 
 class UndersamplingConfig(MIAIBaseConfig):
