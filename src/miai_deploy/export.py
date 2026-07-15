@@ -91,7 +91,7 @@ def export_model(
         with torch.no_grad():
             torch.onnx.export(
                 model,
-                example_input,
+                (example_input,),
                 str(out_path),
                 opset_version=config.opset_version,
                 input_names=["input"],
