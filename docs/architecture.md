@@ -13,6 +13,7 @@ MIAI
 ├── miai-registration      # image registration
 ├── miai-reconstruction    # image reconstruction
 ├── miai-diffusion         # generative / diffusion models
+├── miai-foundation-models # pretrained-model embeddings / feature extraction
 ├── miai-evaluation        # metrics and evaluation harnesses
 ├── miai-visualization     # visualization tooling
 ├── miai-deploy            # clinical deployment

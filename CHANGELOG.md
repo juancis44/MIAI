@@ -5,6 +5,27 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.0] - 2026-07-15
+
+### Added
+
+- `miai-foundation-models`: third Phase 5 package -- per-volume embeddings from a
+  pretrained Hugging Face Hub vision model, for downstream retrieval/clustering/simple
+  classification without fine-tuning.
+  - `miai_foundation_models.extractor`: `FeatureExtractorConfig` + `FeatureExtractor` --
+    wraps a 2D vision model (default `facebook/dinov2-small`, swappable via `model_id`)
+    as a per-volume embedder using a slice-and-aggregate ("2.5D") strategy: every slice
+    along `slice_axis` is embedded independently (CLS or mean token pooling), then the
+    per-slice embeddings are pooled across slices (mean or max) into one vector.
+    `FeatureExtractor.from_pretrained` downloads the model/processor from the Hub;
+    the constructor also accepts an already-loaded model/processor pair.
+  - `miai_foundation_models.run`: `extract_embeddings_for_paths` -- reads volumes via
+    SimpleITK (same I/O convention as the rest of MIAI), extracts an embedding per case,
+    and saves each as a `.pt` tensor file.
+  - `miai_pipeline.stages.feature_extraction.FeatureExtractionStage`: optional pipeline
+    stage, outside the main segmentation workflow, writing `embedding_paths`.
+  - New dependencies: `transformers`, `huggingface_hub`, `Pillow`.
+
 ## [0.7.0] - 2026-07-15
 
 ### Added

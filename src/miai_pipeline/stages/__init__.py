@@ -13,6 +13,10 @@ from miai_pipeline.stages.diffusion_training import (
     DiffusionTrainingStageConfig,
 )
 from miai_pipeline.stages.evaluation import EvaluationStage, EvaluationStageConfig
+from miai_pipeline.stages.feature_extraction import (
+    FeatureExtractionStage,
+    FeatureExtractionStageConfig,
+)
 from miai_pipeline.stages.inference import InferenceStage, InferenceStageConfig
 from miai_pipeline.stages.preprocessing import PreprocessingConfig, PreprocessingStage
 from miai_pipeline.stages.registration import RegistrationStage, RegistrationStageConfig
@@ -33,6 +37,7 @@ STAGE_REGISTRY: dict[str, type[PipelineStage]] = {
     EvaluationStage.name: EvaluationStage,
     DiffusionTrainingStage.name: DiffusionTrainingStage,
     DenoisingStage.name: DenoisingStage,
+    FeatureExtractionStage.name: FeatureExtractionStage,
 }
 
 __all__ = [
@@ -55,4 +60,6 @@ __all__ = [
     "DiffusionTrainingStageConfig",
     "DenoisingStage",
     "DenoisingStageConfig",
+    "FeatureExtractionStage",
+    "FeatureExtractionStageConfig",
 ]
