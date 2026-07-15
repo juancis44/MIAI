@@ -76,7 +76,7 @@ class _ResBlock(nn.Module):
         h = self.conv1(torch.relu(self.norm1(x)))
         h = h + self.time_proj(t_emb)[:, :, None, None, None]
         h = self.conv2(torch.relu(self.norm2(h)))
-        return h + cast(torch.Tensor, self.skip(x))
+        return cast(torch.Tensor, h + self.skip(x))
 
 
 class DiffusionUNet(nn.Module):
