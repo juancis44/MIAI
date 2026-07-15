@@ -167,3 +167,54 @@ def make_synthetic_volume_pair(
     sitk.WriteImage(image, str(image_path))
     sitk.WriteImage(label, str(label_path))
     return image_path, label_path
+
+
+def make_offset_cube_volume(
+    directory,
+    *,
+    name: str = "cube",
+    size: tuple[int, int, int] = (32, 32, 32),
+    offset: tuple[int, int, int] = (0, 0, 0),
+    spacing: tuple[float, float, float] = (1.0, 1.0, 1.0),
+):
+    """Write a synthetic NIfTI volume with a solid cube, optionally offset.
+
+    Used by miai_registration tests to build a "fixed" reference volume
+    and a "moving" volume that is a known translation of it, without
+    going through DICOM -- registering the moving volume back onto the
+    fixed one should recover (approximately) the negative of ``offset``.
+
+    Args:
+        directory: Directory the file is written under (created if
+            missing).
+        name: Case identifier used in the output filename.
+        size: Volume shape as ``(depth, height, width)``, matching
+            SimpleITK's array convention.
+        offset: How far to shift the cube along each axis, in voxels,
+            relative to a cube centered at ``size // 3 : size // 3 * 2``.
+        spacing: Voxel spacing in millimeters.
+
+    Returns:
+        The path the volume was written to.
+    """
+    import numpy as np
+    import SimpleITK as sitk
+
+    directory = Path(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+
+    depth, height, width = size
+    arr = np.zeros(size, dtype=np.float32)
+    d0, d1 = depth // 3 + offset[0], depth // 3 * 2 + offset[0]
+    h0, h1 = height // 3 + offset[1], height // 3 * 2 + offset[1]
+    w0, w1 = width // 3 + offset[2], width // 3 * 2 + offset[2]
+    arr[max(d0, 0) : min(d1, depth), max(h0, 0) : min(h1, height), max(w0, 0) : min(w1, width)] = (
+        100.0
+    )
+
+    image = sitk.GetImageFromArray(arr)
+    image.SetSpacing(spacing)
+
+    path = directory / f"{name}.nii.gz"
+    sitk.WriteImage(image, str(path))
+    return path

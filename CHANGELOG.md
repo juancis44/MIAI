@@ -5,6 +5,32 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] - 2026-07-15
+
+### Added
+
+- `miai-registration`: first package of Phase 5, image registration on
+  SimpleITK.
+  - `miai_registration.register`: `RegistrationConfig` +
+    `register_images` -- rigid, affine, or bspline registration via
+    `SimpleITK.ImageRegistrationMethod`, multi-resolution gradient
+    descent, configurable metric (Mattes mutual information by
+    default, or mean squares / correlation).
+  - `miai_registration.apply`: `apply_transform` -- resamples another
+    image (e.g. a label mask) onto the fixed grid with a previously
+    estimated transform, using nearest-neighbor interpolation by
+    default so label values are not corrupted.
+  - `miai_registration.transform_io`: `write_transform` /
+    `read_transform`.
+  - `miai_pipeline.stages.registration.RegistrationStage`: new
+    optional pipeline stage, registering every case onto a common
+    fixed reference image (e.g. an atlas/template) -- fits between
+    `preprocessing` and `dataset` for population-study-style
+    workflows. Propagates each case's transform to its label too, if
+    `label_context_key` is configured.
+  - No new third-party dependencies -- SimpleITK has been a MIAI
+    dependency since Phase 2.
+
 ## [0.5.0] - 2026-07-15
 
 ### Added

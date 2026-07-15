@@ -1,6 +1,12 @@
 """MIAI Pipeline: config-driven orchestration of the clinical workflow.
 
-    DICOM -> NIfTI -> Preprocessing -> Dataset -> Training -> Inference -> Evaluation
+    DICOM -> NIfTI -> Preprocessing -> [Registration] -> Dataset -> Training
+    -> Inference -> Evaluation
+
+``Registration`` (:class:`~miai_pipeline.stages.registration.RegistrationStage`)
+is optional: include it in a pipeline config to align every case onto
+a common fixed reference image (e.g. an atlas) before building the
+dataset manifest -- see :mod:`miai_registration`.
 
 Each step is a :class:`~miai_pipeline.stage.PipelineStage` that reads
 inputs from, and writes outputs to, a shared
@@ -27,7 +33,7 @@ from miai_pipeline.exceptions import PipelineError, StageError, UnknownStageErro
 from miai_pipeline.pipeline import Pipeline
 from miai_pipeline.stage import PipelineStage
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 
 __all__ = [
     "Pipeline",

@@ -71,7 +71,15 @@ Closes out the `evaluation` stage left open in Phase 3/4:
 
 ## Phase 5 — Advanced modules *(current)*
 
-- [ ] Registration
+- [x] Registration
+  - [x] `miai_registration.register`: `register_images` -- rigid/affine/bspline registration via
+    `SimpleITK.ImageRegistrationMethod` (multi-resolution gradient descent)
+  - [x] `miai_registration.apply`: `apply_transform` -- propagates an estimated transform to a
+    paired image (e.g. a label mask, via nearest-neighbor interpolation)
+  - [x] `miai_registration.transform_io`: save/load transforms
+  - [x] `miai_pipeline.stages.registration.RegistrationStage`: optional pipeline stage, aligning
+    every case onto a common fixed reference image (e.g. an atlas) between `preprocessing` and
+    `dataset`
 - [ ] Diffusion
 - [ ] Foundation models
 - [ ] Deployment
