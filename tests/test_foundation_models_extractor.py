@@ -75,12 +75,11 @@ def test_mean_slice_pooling_matches_manual_average() -> None:
 
     embedding = extractor.extract_volume_embedding(volume)
 
-    # Recompute per-slice embeddings one at a time (batch_size=1) and
-    # average manually; should match the batched mean-pooled result.
-    single_extractor = _make_extractor(slice_pooling="mean", batch_size=1)
-    manual = torch.stack(
-        [single_extractor.extract_volume_embedding(volume[i : i + 1]) for i in range(4)]
-    ).mean(dim=0)
+    # Recompute per-slice embeddings one at a time through the *same*
+    # extractor (same underlying model weights) and average manually;
+    # should match the batched mean-pooled result regardless of how
+    # slices are grouped into batches.
+    manual = torch.stack([extractor._embed_slices([volume[i]])[0] for i in range(4)]).mean(dim=0)
 
     assert torch.allclose(embedding, manual, atol=1e-5)
 
