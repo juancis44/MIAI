@@ -11,11 +11,12 @@ engineering best practices, and clinical applicability.
 
 > **Status:** `miai-core`, `miai-dicom`, `miai-pipeline`,
 > `miai-transforms`, `miai-datasets`, `miai-segmentation`,
-> `miai-evaluation`, and `miai-registration` implemented -- the full
-> clinical workflow (DICOM -> NIfTI -> Preprocessing -> [Registration]
-> -> Dataset -> Training -> Inference -> Evaluation) runs end to end.
-> See [docs/roadmap.md](docs/roadmap.md) for what's next (Phase 5:
-> diffusion, foundation models, deployment).
+> `miai-evaluation`, `miai-registration`, and `miai-diffusion`
+> implemented -- the full clinical workflow (DICOM -> NIfTI ->
+> Preprocessing -> [Registration] -> Dataset -> Training -> Inference
+> -> Evaluation) runs end to end, plus optional DDPM-based volume
+> denoising. See [docs/roadmap.md](docs/roadmap.md) for what's next
+> (Phase 5: foundation models, deployment).
 
 ## Why MIAI?
 

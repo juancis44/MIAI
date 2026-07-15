@@ -5,6 +5,36 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.7.0] - 2026-07-15
+
+### Added
+
+- `miai-diffusion`: second Phase 5 package -- a from-scratch DDPM for
+  volume denoising, on PyTorch only (no MONAI generative extension).
+  - `miai_diffusion.schedule`: `NoiseScheduleConfig` + `NoiseSchedule`
+    -- linear or cosine beta schedule, forward noising (`q_sample`)
+    and the reverse denoising step (`p_sample_step`), following Ho,
+    Jain & Abbeel, "Denoising Diffusion Probabilistic Models" (2020).
+  - `miai_diffusion.model`: `DiffusionUNetConfig` + `DiffusionUNet` --
+    a compact 3D UNet with sinusoidal timestep conditioning, built from
+    plain `torch.nn` layers.
+  - `miai_diffusion.train`: `DiffusionTrainingConfig` +
+    `train_diffusion_model` -- the standard DDPM noise-prediction
+    training objective (MSE between predicted and actual noise).
+  - `miai_diffusion.denoise`: `DenoiseConfig` + `denoise_volume` /
+    `run_denoising` -- denoises a real noisy volume by treating it as
+    the schedule's `x_t` at a configurable `start_timestep` and running
+    the reverse process down to `t=0` (an SDEdit-style use of a
+    diffusion model as a restoration prior, not just for unconditional
+    sampling from pure noise). File I/O via SimpleITK, consistent with
+    the rest of MIAI.
+  - `miai_pipeline.stages.diffusion_training.DiffusionTrainingStage`
+    and `.stages.denoising.DenoisingStage`: new optional pipeline
+    stages (unconditional training on `manifest["train"]`; denoising
+    any list of volumes), separate from the main segmentation workflow.
+  - No new third-party dependencies -- torch has been a MIAI dependency
+    since Phase 4.
+
 ## [0.6.0] - 2026-07-15
 
 ### Added
