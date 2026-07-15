@@ -92,7 +92,16 @@ Closes out the `evaluation` stage left open in Phase 3/4:
   - [x] `miai_pipeline.stages.diffusion_training.DiffusionTrainingStage` /
     `.denoising.DenoisingStage`: optional pipeline stages, outside the main segmentation
     workflow
-- [ ] Foundation models
+- [x] Foundation models
+  - [x] `miai_foundation_models.extractor`: `FeatureExtractor` -- embeds a volume with a
+    pretrained Hugging Face Hub vision model (default `facebook/dinov2-small`) using a
+    slice-and-aggregate ("2.5D") strategy: run the 2D model over every slice, pool tokens
+    per slice (CLS or mean), then pool across slices (mean or max) into one embedding
+  - [x] `miai_foundation_models.run`: `extract_embeddings_for_paths` -- extracts and saves
+    embeddings for a list of volumes on disk, SimpleITK-only I/O
+  - [x] `miai_pipeline.stages.feature_extraction.FeatureExtractionStage`: optional pipeline
+    stage, outside the main segmentation workflow, for embedding-based downstream tasks
+    (retrieval, clustering, simple classification) without fine-tuning
 - [ ] Deployment
 
 ## Working principle
