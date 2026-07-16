@@ -44,29 +44,30 @@ everything surrounding deep learning.
 | [docs/api_design.md](docs/api_design.md) | API design principles across packages |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
 
-## Ecosystem (planned)
+## Ecosystem
 
 ```
 MIAI
-├── miai-core            # utilities, config, logging, IO, exceptions
-├── miai-dicom            # DICOM read/write, anonymization, series loading
-├── miai-pipeline          # end-to-end clinical workflow orchestration
-├── miai-transforms        # image preprocessing / augmentation
-├── miai-datasets          # dataset management
-├── miai-segmentation      # segmentation models & training
-├── miai-registration      # image registration
-├── miai-reconstruction    # image reconstruction
-├── miai-diffusion         # generative / diffusion models
-├── miai-foundation-models # pretrained-model embeddings / feature extraction
-├── miai-evaluation        # metrics and evaluation
-├── miai-visualization     # visualization tooling
-├── miai-deploy            # clinical deployment
-└── miai-examples          # end-to-end examples
+├── miai-core               # utilities, config, logging, IO, exceptions        [done]
+├── miai-dicom              # DICOM read/write, anonymization, series loading   [done]
+├── miai-pipeline           # end-to-end clinical workflow orchestration        [done]
+├── miai-transforms         # image preprocessing / augmentation                [done]
+├── miai-datasets           # dataset management                                [done]
+├── miai-segmentation       # segmentation models & training                    [done]
+├── miai-registration       # image registration                                [done]
+├── miai-reconstruction     # image reconstruction                              [done]
+├── miai-diffusion          # generative / diffusion models                     [done]
+├── miai-foundation-models  # pretrained-model embeddings / feature extraction  [done]
+├── miai-evaluation         # metrics and evaluation                            [done]
+├── miai-visualization      # visualization tooling                             [done]
+├── miai-deploy             # clinical deployment                               [done]
+└── miai-examples           # end-to-end examples                               [planned]
 ```
 
-During Phase 0–1, this repository holds the project design and the first
-package, `miai-core`, as a single monorepo. Packages may be split into
-separate repositories later as the ecosystem matures.
+All packages above live in this single monorepo, each under its own
+`src/<package>` namespace with its own tests -- see
+[docs/architecture.md](docs/architecture.md) for why, and why no package has
+been split into its own repository yet.
 
 ## Installation
 
