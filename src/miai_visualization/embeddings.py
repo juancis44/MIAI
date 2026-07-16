@@ -9,6 +9,7 @@ algebra operation that does not need a dedicated library.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -41,7 +42,7 @@ def _pca_2d(embeddings: torch.Tensor) -> torch.Tensor:
     centered = embeddings - embeddings.mean(dim=0, keepdim=True)
     _, _, vh = torch.linalg.svd(centered, full_matrices=False)
     components = vh[:2]
-    return centered @ components.T
+    return cast(torch.Tensor, centered @ components.T)
 
 
 def plot_embedding_projection(
