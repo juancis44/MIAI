@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "miai-core"
-version = "0.10.0"
+version = "0.11.0"
 description = "MIAI core utilities: configuration, logging, IO, exceptions, typing."
 readme = "README.md"
 license = { text = "MIT" }
@@ -34,6 +34,7 @@ dependencies = [
     "Pillow>=10.0",
     "onnx>=1.14",
     "scikit-image>=0.22",
+    "matplotlib>=3.8",
 ]
 
 [project.optional-dependencies]
@@ -64,6 +65,7 @@ packages = [
     "src/miai_foundation_models",
     "src/miai_deploy",
     "src/miai_reconstruction",
+    "src/miai_visualization",
 ]
 
 [tool.black]
@@ -109,6 +111,7 @@ module = [
     "miai_diffusion.denoise",
     "miai_foundation_models.run",
     "miai_reconstruction.run",
+    "miai_pipeline.stages.visualization",
 ]
 disallow_untyped_calls = false
 
@@ -136,6 +139,11 @@ module = [
     "miai_deploy.export",
     "miai_reconstruction.kspace",
     "miai_reconstruction.metrics",
+    "miai_visualization.slices",
+    "miai_visualization.comparison",
+    "miai_visualization.curves",
+    "miai_visualization.metrics",
+    "miai_visualization.embeddings",
 ]
 disallow_untyped_calls = false
 disallow_untyped_defs = false

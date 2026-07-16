@@ -9,18 +9,19 @@ medical imaging workflows. Rather than replacing existing libraries such as
 software architecture focused on research reproducibility, software
 engineering best practices, and clinical applicability.
 
-> **Status:** all planned Phase 0-5 packages implemented, plus the
-> first Phase 6 package --
+> **Status:** all planned Phase 0-5 packages implemented, plus two
+> Phase 6 packages --
 > `miai-core`, `miai-dicom`, `miai-pipeline`, `miai-transforms`,
 > `miai-datasets`, `miai-segmentation`, `miai-evaluation`,
 > `miai-registration`, `miai-diffusion`, `miai-foundation-models`,
-> `miai-deploy`, and `miai-reconstruction`. The full clinical
-> workflow (DICOM -> NIfTI -> Preprocessing -> [Registration] ->
-> Dataset -> Training -> Inference -> Evaluation) runs end to end,
-> plus optional DDPM-based volume denoising, pretrained-model
-> embedding extraction, portable model export (TorchScript/ONNX),
-> and MRI k-space reconstruction. See [docs/roadmap.md](docs/roadmap.md)
-> for what's next.
+> `miai-deploy`, `miai-reconstruction`, and `miai-visualization`.
+> The full clinical workflow (DICOM -> NIfTI -> Preprocessing ->
+> [Registration] -> Dataset -> Training -> Inference -> Evaluation)
+> runs end to end, plus optional DDPM-based volume denoising,
+> pretrained-model embedding extraction, portable model export
+> (TorchScript/ONNX), MRI k-space reconstruction, and plotting
+> tools for volumes/comparisons/curves/metrics/embeddings. See
+> [docs/roadmap.md](docs/roadmap.md) for what's next.
 
 ## Why MIAI?
 

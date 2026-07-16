@@ -26,7 +26,7 @@ MONAI-backed implementations (see :mod:`miai_transforms`,
 concrete, backed by :mod:`miai_evaluation` (Dice / Hausdorff distance
 metrics).
 
-Five more optional stages are available outside this main
+Six more optional stages are available outside this main
 segmentation workflow:
 :class:`~miai_pipeline.stages.diffusion_training.DiffusionTrainingStage`
 and :class:`~miai_pipeline.stages.denoising.DenoisingStage`, backed by
@@ -37,9 +37,11 @@ backed by :mod:`miai_foundation_models` (per-volume embeddings from a
 pretrained Hugging Face vision model);
 :class:`~miai_pipeline.stages.export.ExportStage`, backed by
 :mod:`miai_deploy` (portable TorchScript/ONNX export of the trained
-segmentation model); and
+segmentation model);
 :class:`~miai_pipeline.stages.reconstruction.ReconstructionStage`, backed by
-:mod:`miai_reconstruction` (MRI k-space reconstruction via `torch.fft`).
+:mod:`miai_reconstruction` (MRI k-space reconstruction via `torch.fft`); and
+:class:`~miai_pipeline.stages.visualization.VisualizationStage`, backed by
+:mod:`miai_visualization` (per-case QC slice montages).
 See docs/roadmap.md.
 """
 
@@ -49,7 +51,7 @@ from miai_pipeline.exceptions import PipelineError, StageError, UnknownStageErro
 from miai_pipeline.pipeline import Pipeline
 from miai_pipeline.stage import PipelineStage
 
-__version__ = "0.10.0"
+__version__ = "0.11.0"
 
 __all__ = [
     "Pipeline",
