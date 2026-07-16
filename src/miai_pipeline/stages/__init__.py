@@ -23,6 +23,7 @@ from miai_pipeline.stages.preprocessing import PreprocessingConfig, Preprocessin
 from miai_pipeline.stages.reconstruction import ReconstructionStage, ReconstructionStageConfig
 from miai_pipeline.stages.registration import RegistrationStage, RegistrationStageConfig
 from miai_pipeline.stages.training import TrainingStage, TrainingStageConfig
+from miai_pipeline.stages.visualization import VisualizationStage, VisualizationStageConfig
 
 #: Maps a :class:`~miai_pipeline.config.StageConfig.type` string to the
 #: stage class that implements it. Used by
@@ -42,6 +43,7 @@ STAGE_REGISTRY: dict[str, type[PipelineStage]] = {
     FeatureExtractionStage.name: FeatureExtractionStage,
     ExportStage.name: ExportStage,
     ReconstructionStage.name: ReconstructionStage,
+    VisualizationStage.name: VisualizationStage,
 }
 
 __all__ = [
@@ -70,4 +72,6 @@ __all__ = [
     "ExportStageConfig",
     "ReconstructionStage",
     "ReconstructionStageConfig",
+    "VisualizationStage",
+    "VisualizationStageConfig",
 ]

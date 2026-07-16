@@ -5,6 +5,29 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.11.0] - 2026-07-16
+
+### Added
+
+- `miai-visualization`: second Phase 6 package -- plotting tools for volumes,
+  comparisons, training curves, metric summaries, and embeddings. Every plot is saved
+  as a file (matplotlib's "Agg" backend, forced at package import), never shown
+  interactively.
+  - `miai_visualization.slices`: `plot_slice` (single slice, optional mask overlay) /
+    `plot_montage` (grid of evenly-spaced slices).
+  - `miai_visualization.comparison`: `plot_comparison` -- side-by-side images plus
+    optional absolute-difference maps.
+  - `miai_visualization.curves`: `plot_training_curves` -- lines from a CSV training log.
+  - `miai_visualization.metrics`: `plot_metric_summary` -- bar/box plot of a per-case
+    metric (visualizes values computed elsewhere, e.g. by `miai_evaluation` or
+    `miai_reconstruction`; does not compute metrics itself).
+  - `miai_visualization.embeddings`: `plot_embedding_projection` -- 2-component PCA
+    (via `torch.linalg.svd`, no new dependency for this) scatter plot, e.g. of
+    `miai_foundation_models` embeddings.
+  - `miai_pipeline.stages.visualization.VisualizationStage`: optional pipeline stage
+    writing a QC slice montage per case, `qc_visualization_paths`.
+  - New dependency: `matplotlib`.
+
 ## [0.10.0] - 2026-07-16
 
 ### Added

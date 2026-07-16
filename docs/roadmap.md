@@ -133,6 +133,24 @@ Phase 5 is now complete.
   - [x] `miai_pipeline.stages.reconstruction.ReconstructionStage`: optional pipeline
     stage, writing `reconstructed_paths`
   - New dependency: `scikit-image`
+- [x] Visualization
+  - [x] `miai_visualization.slices`: `plot_slice` (single slice, optional mask overlay)
+    / `plot_montage` (grid of evenly-spaced slices)
+  - [x] `miai_visualization.comparison`: `plot_comparison` -- side-by-side images plus
+    optional absolute-difference maps (e.g. original vs. reconstructed/denoised)
+  - [x] `miai_visualization.curves`: `plot_training_curves` -- one line per metric from a
+    CSV training log
+  - [x] `miai_visualization.metrics`: `plot_metric_summary` -- bar or box plot of a
+    per-case metric (Dice, PSNR, SSIM, ...); visualizes values already computed
+    elsewhere, does not compute metrics itself
+  - [x] `miai_visualization.embeddings`: `plot_embedding_projection` -- 2-component PCA
+    (via `torch.linalg.svd`, no scikit-learn dependency) scatter plot of embeddings,
+    e.g. from `miai_foundation_models`
+  - [x] `miai_pipeline.stages.visualization.VisualizationStage`: optional pipeline stage
+    writing a QC slice montage per case, `qc_visualization_paths`
+  - Every plot is saved as a file (matplotlib's non-interactive "Agg" backend), never
+    shown interactively -- consistent with MIAI's reproducibility-first design
+  - New dependency: `matplotlib`
 
 ## Working principle
 
