@@ -118,6 +118,16 @@ result = pipeline.run(context)
 print(result.require("manifest_path"))
 ```
 
+The same pipeline can also be run from the command line, without writing
+any Python, via the `miai-pipeline` console script installed alongside the
+package:
+
+```bash
+miai-pipeline validate configs/pipeline.yaml      # check the config, don't run it
+miai-pipeline list-stages                         # list every registered stage type
+miai-pipeline run configs/pipeline.yaml --set dicom_dir=data/raw_dicom
+```
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

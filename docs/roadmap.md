@@ -152,6 +152,28 @@ Phase 5 is now complete.
     shown interactively -- consistent with MIAI's reproducibility-first design
   - New dependency: `matplotlib`
 
+## Project infrastructure improvements
+
+Not tied to a specific package -- maintenance/tooling work done after a project
+state review at the end of Phase 6:
+
+- [x] `py.typed` markers (PEP 561) added to all 13 implemented packages, so external
+  consumers of MIAI get type-checking benefits from mypy, not just internal CI.
+  Verified the markers actually land in a built wheel (hatchling includes them by
+  default, no extra config needed).
+- [x] `miai_pipeline.cli`: `miai-pipeline` console script (`run` / `validate` /
+  `list-stages` subcommands) -- a pipeline YAML config can now be run from the
+  terminal without writing Python, matching the "configuration over code" principle.
+- [x] Fixed `examples/README.md` and `scripts/README.md`, both still worded as if the
+  project were in Phase 0/1.
+- [ ] PyPI packaging/publishing workflow
+- [ ] Dependency update/security automation (Dependabot, CodeQL or `pip-audit`)
+- [ ] Coverage threshold enforcement in CI (`--cov-fail-under`)
+- [ ] Dependency lockfile for fully reproducible installs (today's `pyproject.toml`
+  only sets lower bounds)
+- [ ] Docstring-completeness linter (e.g. `interrogate`/`pydocstyle`) in CI, per
+  `docs/api_design.md`'s Documentation contract
+
 ## Working principle
 
 We do not start a phase's package until the previous phase's foundations are

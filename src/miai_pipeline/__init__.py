@@ -51,7 +51,7 @@ from miai_pipeline.exceptions import PipelineError, StageError, UnknownStageErro
 from miai_pipeline.pipeline import Pipeline
 from miai_pipeline.stage import PipelineStage
 
-__version__ = "0.11.0"
+__version__ = "0.12.0"
 
 __all__ = [
     "Pipeline",
