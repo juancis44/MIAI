@@ -8,6 +8,7 @@ class hierarchy or module.
 
 from __future__ import annotations
 
+from collections.abc import KeysView
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -57,3 +58,12 @@ class PipelineContext:
 
     def __contains__(self, key: object) -> bool:
         return key in self._data
+
+    def keys(self) -> KeysView[str]:
+        """Return the keys currently set on this context.
+
+        Useful for logging/introspection (e.g. the CLI's ``run``
+        command reports the final context's keys after a pipeline
+        finishes) without exposing the backing dict directly.
+        """
+        return self._data.keys()

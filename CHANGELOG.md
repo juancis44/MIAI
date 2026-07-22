@@ -5,6 +5,22 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.12.0] - 2026-07-16
+
+### Added
+
+- `py.typed` markers (PEP 561) added to all 13 implemented packages, confirmed to be
+  included in a built wheel.
+- `miai_pipeline.cli`: `miai-pipeline` console script (`run` / `validate` /
+  `list-stages` subcommands), installed via a new `[project.scripts]` entry point.
+- `PipelineContext.keys()`: read-only view of the keys currently set on a context,
+  used by the CLI's `run` command to report what a pipeline produced.
+
+### Fixed
+
+- `examples/README.md` and `scripts/README.md` still read as if the project were in
+  Phase 0/1; reworded to match the current (Phase 6) state.
+
 ## [0.11.0] - 2026-07-16
 
 ### Added
