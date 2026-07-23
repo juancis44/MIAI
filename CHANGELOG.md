@@ -16,6 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   dispatch. Runs as its own workflow, separate from `lint-and-test`, so a newly
   disclosed vulnerability in a pinned dependency doesn't block unrelated PRs.
 
+### Fixed
+
+- Pinned `setuptools>=83.0.0` in dev dependencies (PYSEC-2026-3447, found by the new
+  pip-audit workflow on its first real run).
+- Bumped `actions/checkout` to v5 and `actions/setup-python` to v6 in both workflows
+  (the previous versions emit a Node.js 20 deprecation warning on GitHub's runners).
+
 ## [0.12.0] - 2026-07-16
 
 ### Added
