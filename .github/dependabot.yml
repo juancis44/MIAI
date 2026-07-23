@@ -1,0 +1,28 @@
+version: 2
+updates:
+  # Root pyproject.toml -- covers every MIAI package, since this is a
+  # single monorepo with one shared dependency set (see
+  # docs/architecture.md, "Repository strategy").
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "chore"
+
+  # Keep the CI workflow's own actions (actions/checkout,
+  # actions/setup-python, ...) current too.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "ci"
+    commit-message:
+      prefix: "ci"
