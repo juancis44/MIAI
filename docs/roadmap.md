@@ -179,6 +179,19 @@ state review at the end of Phase 6:
   only sets lower bounds)
 - [ ] Docstring-completeness linter (e.g. `interrogate`/`pydocstyle`) in CI, per
   `docs/api_design.md`'s Documentation contract
+- [x] Deepened `tests/test_pipeline_end_to_end.py`: previously only chained
+  `dicom_to_nifti -> preprocessing -> dataset` (3 of ~13 stages) via a real
+  `Pipeline.from_config` run. Added: the same data-prep chain extended through
+  `[registration]`; a full ML-half chain (`dataset -> training -> inference ->
+  evaluation`); and two optional-stage chains
+  (`diffusion_training -> denoising`, `training -> export`) -- the latter two
+  specifically check that a context key one stage writes
+  (`model_checkpoint_path`, `diffusion_checkpoint_path`) is picked up
+  automatically by the next stage, which no test had exercised before (every
+  prior stage test built its context by hand rather than from a preceding
+  stage's real output). `feature_extraction`, `reconstruction`, and
+  `visualization` remain covered only in isolation, not chained -- a possible
+  future addition, not done now.
 
 ## Working principle
 

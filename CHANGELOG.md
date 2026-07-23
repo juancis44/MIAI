@@ -23,6 +23,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Bumped `actions/checkout` to v5 and `actions/setup-python` to v6 in both workflows
   (the previous versions emit a Node.js 20 deprecation warning on GitHub's runners).
 
+### Tests
+
+- Deepened `tests/test_pipeline_end_to_end.py`, which previously only chained 3 of
+  ~13 stages (`dicom_to_nifti -> preprocessing -> dataset`). Added: the same chain
+  extended through `[registration]`; a full `dataset -> training -> inference ->
+  evaluation` ML chain; and `diffusion_training -> denoising` /
+  `training -> export` chains, which specifically verify that
+  `model_checkpoint_path`/`diffusion_checkpoint_path` flow from one real stage to
+  the next automatically -- no prior test exercised that handoff outside a
+  hand-built context.
+
 ## [0.12.0] - 2026-07-16
 
 ### Added
