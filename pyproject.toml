@@ -45,6 +45,11 @@ dev = [
     "pytest-cov>=5.0",
     "mypy>=1.10",
     "pre-commit>=3.7",
+    # Not a MIAI runtime dependency -- pinned here to patch
+    # PYSEC-2026-3447 in the setuptools version pip installs by
+    # default into the dev/CI environment (surfaced by the pip-audit
+    # security workflow, .github/workflows/security.yml).
+    "setuptools>=83.0.0",
 ]
 
 [project.scripts]
