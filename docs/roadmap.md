@@ -167,7 +167,13 @@ state review at the end of Phase 6:
 - [x] Fixed `examples/README.md` and `scripts/README.md`, both still worded as if the
   project were in Phase 0/1.
 - [ ] PyPI packaging/publishing workflow
-- [ ] Dependency update/security automation (Dependabot, CodeQL or `pip-audit`)
+- [x] Dependency update/security automation (Dependabot for `pip` + `github-actions`;
+  weekly `pip-audit` scan against the installed environment, plus on any
+  `pyproject.toml` change, in a separate `security.yml` workflow that doesn't block
+  the main `lint-and-test` CI). CodeQL was not added: it requires GitHub Advanced
+  Security for private repositories, which this repo doesn't have; `pip-audit`
+  covers the actual risk here (vulnerable dependencies), since MIAI has no
+  custom C extensions or unsafe deserialization of untrusted input to scan for.
 - [ ] Coverage threshold enforcement in CI (`--cov-fail-under`)
 - [ ] Dependency lockfile for fully reproducible installs (today's `pyproject.toml`
   only sets lower bounds)

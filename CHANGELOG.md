@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- `.github/dependabot.yml`: weekly automated dependency-update PRs for the `pip`
+  (root `pyproject.toml`) and `github-actions` ecosystems.
+- `.github/workflows/security.yml`: `pip-audit` scan against the fully installed
+  environment, on a weekly schedule, on any `pyproject.toml` change, and on manual
+  dispatch. Runs as its own workflow, separate from `lint-and-test`, so a newly
+  disclosed vulnerability in a pinned dependency doesn't block unrelated PRs.
+
 ## [0.12.0] - 2026-07-16
 
 ### Added
