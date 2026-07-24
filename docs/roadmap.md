@@ -181,6 +181,11 @@ state review at the end of Phase 6:
 - [x] Coverage threshold enforcement: `--cov-fail-under=95` in pytest's `addopts`
   (current coverage is ~98%, so this catches real regressions while leaving
   headroom for hard-to-cover fix-forward error paths).
+- [x] Expanded `miai_evaluation.metrics`: added IoU, sensitivity, specificity
+  (via MONAI's `MeanIoU`/`ConfusionMatrixMetric`), and volume similarity
+  (computed directly -- MONAI has no built-in metric for it) alongside the
+  existing Dice/HD95. All four are opt-in flags on `MetricsConfig`, defaulting
+  to `False`, so no existing config or report format changes.
 - [ ] Dependency lockfile for fully reproducible installs (today's `pyproject.toml`
   only sets lower bounds)
 - [ ] Docstring-completeness linter (e.g. `interrogate`/`pydocstyle`) in CI, per
