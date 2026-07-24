@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `mypy tests` (alongside the existing `mypy src`) in CI. Previously only
+  production code was type-checked under `--strict`; the ~4000-line test
+  suite had none. Fixed real issues this surfaced in `tests/conftest.py`:
+  two pydicom UID assignments were widened to plain `str` through a
+  reassigned variable (fixed by keeping the resolved value in a
+  separate, correctly-typed `resolved_sop_instance_uid`, which also
+  fixed a latent bug where `dataset.SOPInstanceUID` could end up `None`
+  instead of the generated UID); `FileDataset(filename_or_obj=None, ...)`
+  needed a documented `type: ignore[arg-type]` (pydicom's stub omits
+  `None` even though the real implementation accepts it for in-memory
+  datasets). Also added missing parameter/return type annotations across
+  several test helpers, and a new `[[tool.mypy.overrides]]` block
+  relaxing `disallow_untyped_calls` for the test modules that call
+  SimpleITK directly (same rationale as the existing src-side override:
+  SimpleITK ships no type stubs).
 - `interrogate` docstring-completeness check in CI (`interrogate src`), gated
   by `[tool.interrogate]` in `pyproject.toml` (`style = "google"`,
   `fail-under = 85`, current actual is 87.1%). Enforces the *presence* of

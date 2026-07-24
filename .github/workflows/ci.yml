@@ -40,7 +40,7 @@ jobs:
         run: ruff check .
 
       - name: Type check (mypy)
-        run: mypy src
+        run: mypy src tests
 
       - name: Docstring completeness (interrogate)
         run: interrogate src

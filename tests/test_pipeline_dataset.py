@@ -41,7 +41,7 @@ def test_dataset_split_sizes(tmp_path: Path) -> None:
 def test_dataset_split_is_reproducible_with_same_seed(tmp_path: Path) -> None:
     cases = _cases(10)
 
-    def run_once(path: Path):
+    def run_once(path: Path) -> object:
         stage = DatasetStage(DatasetConfig(manifest_path=str(path), seed=7))
         ctx = PipelineContext()
         ctx.set("preprocessed_paths", cases)

@@ -1,6 +1,9 @@
 """Tests for miai_registration.register."""
 
+from typing import Any
+
 import numpy as np
+import numpy.typing as npt
 import pytest
 import SimpleITK as sitk
 
@@ -17,7 +20,9 @@ _FAST_CONFIG = RegistrationConfig(
 )
 
 
-def _cube_image(shift: tuple[int, int, int] = (0, 0, 0), size: int = 32):
+def _cube_image(
+    shift: tuple[int, int, int] = (0, 0, 0), size: int = 32
+) -> tuple[sitk.Image, npt.NDArray[Any]]:
     arr = np.zeros((size, size, size), dtype=np.float32)
     lo, hi = size // 3, size // 3 * 2
     d0, d1 = lo + shift[0], hi + shift[0]

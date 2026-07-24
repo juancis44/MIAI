@@ -191,6 +191,13 @@ state review at the end of Phase 6:
   `ci.yml`/`security.yml` install from it instead of resolving fresh against
   `pyproject.toml`'s lower bounds every run. Regeneration is manual (see
   `docs/coding_standards.md`) -- Dependabot doesn't update it automatically yet.
+- [x] `mypy tests` in CI, alongside `mypy src`. Fixed real pydicom UID-typing
+  bugs in `tests/conftest.py` this surfaced (a variable reassignment that
+  widened a `UID` to plain `str`, which also masked a latent bug where
+  `dataset.SOPInstanceUID` could end up `None`), added missing type
+  annotations to several test helpers, and added a `[[tool.mypy.overrides]]`
+  block relaxing `disallow_untyped_calls` for the test modules that call
+  SimpleITK directly (mirrors the existing src-side override).
 - [x] Docstring-completeness linter: `interrogate` in CI (`interrogate src`),
   configured via `[tool.interrogate]` in `pyproject.toml`
   (`style = "google"`, `fail-under = 85`, current actual 87.1%). Checks

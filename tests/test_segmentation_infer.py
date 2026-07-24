@@ -1,5 +1,6 @@
 """Tests for miai_segmentation.infer (tiny real tensors, CPU only)."""
 
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -63,7 +64,7 @@ def test_run_inference_mismatched_source_paths_raises(tmp_path: Path) -> None:
     torch.save(model.state_dict(), checkpoint_path)
 
     class _OneItemLoader:
-        def __iter__(self):
+        def __iter__(self) -> Iterator[dict[str, torch.Tensor]]:
             yield {"image": torch.zeros(1, 1, 4, 4, 4)}
 
     with pytest.raises(SegmentationError):
