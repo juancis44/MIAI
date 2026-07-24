@@ -119,17 +119,21 @@ def _confusion_matrix_metric(
 ) -> float:
     """Compute a single named confusion-matrix metric via MONAI.
 
-    A thin wrapper around :class:`monai.metrics.ConfusionMatrixMetric`
-    so sensitivity/specificity share the exact same
-    ``aggregate() -> Tensor | tuple[Tensor, ...]`` handling as the
-    other metrics in this module, rather than duplicating the
-    ``isinstance`` check per caller.
+    A thin wrapper around :class:`monai.metrics.ConfusionMatrixMetric`,
+    which -- unlike :class:`~monai.metrics.DiceMetric` /
+    :class:`~monai.metrics.HausdorffDistanceMetric` -- can score
+    several metric names at once, so ``aggregate()`` returns a
+    ``list`` (one entry per requested name) rather than a bare
+    ``Tensor | tuple[Tensor, ...]``. With a single ``metric_name`` and
+    ``get_not_nans=False`` that list always has exactly one entry,
+    which is itself a plain ``Tensor`` (the ``tuple`` variant in its
+    type signature only applies when ``get_not_nans=True``).
     """
     metric = ConfusionMatrixMetric(
         include_background=True, metric_name=metric_name, reduction="mean", get_not_nans=False
     )
     metric(y_pred=prediction, y=ground_truth)
-    aggregated = metric.aggregate()
+    aggregated = metric.aggregate()[0]
     tensor = aggregated[0] if isinstance(aggregated, tuple) else aggregated
     return float(tensor.item())
 
