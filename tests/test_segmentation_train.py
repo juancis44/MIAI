@@ -4,8 +4,9 @@ from pathlib import Path
 
 import pytest
 import torch
-from monai.data import DataLoader, Dataset
-from monai.transforms import Compose, EnsureTyped
+from monai.data import DataLoader, Dataset, decollate_batch
+from monai.metrics import DiceMetric
+from monai.transforms import AsDiscrete, Compose, EnsureTyped
 
 from conftest import make_synthetic_volume_pair
 from miai_segmentation.exceptions import SegmentationError
@@ -67,3 +68,55 @@ def test_train_model_empty_loader_raises(tmp_path: Path) -> None:
 
     with pytest.raises(SegmentationError):
         train_model(model, empty_loader, None, config, str(tmp_path / "unused"))
+
+
+def _dice_on_loader(model: torch.nn.Module, loader: DataLoader) -> float:
+    """Compute mean Dice of ``model``'s (thresholded) predictions on ``loader``.
+
+    Mirrors train_model's own validation-scoring logic, but lives here
+    (not imported from miai_segmentation.train) so this test measures
+    actual segmentation quality through a path independent of the
+    training loop's internal bookkeeping.
+    """
+    model.eval()
+    dice_metric = DiceMetric(include_background=True, reduction="mean", get_not_nans=False)
+    post = Compose([AsDiscrete(threshold=0.5)])
+    with torch.no_grad():
+        for batch in loader:
+            outputs = torch.sigmoid(model(batch["image"]))
+            preds = [post(i) for i in decollate_batch(outputs)]
+            labels = [post(i) for i in decollate_batch(batch["label"])]
+            dice_metric(y_pred=preds, y=labels)
+    aggregated = dice_metric.aggregate()
+    metric_tensor = aggregated[0] if isinstance(aggregated, tuple) else aggregated
+    dice_metric.reset()
+    return float(metric_tensor.item())
+
+
+@pytest.mark.slow
+def test_train_model_actually_learns_to_segment(tmp_path: Path) -> None:
+    """Trains for enough epochs on an easy, learnable synthetic pattern
+    (make_synthetic_volume_pair's centered cube) and checks the
+    resulting model's Dice is both high in absolute terms and clearly
+    better than an untrained model of the same architecture -- unlike
+    test_train_model_writes_checkpoint, which only checks training runs
+    without error and produces a loadable checkpoint, never that the
+    model actually learned anything.
+    """
+    train_loader = _make_loader(tmp_path / "train", n_cases=2)
+    val_loader = _make_loader(tmp_path / "val", n_cases=1)
+
+    model = build_unet(_UNET_CONFIG)
+    config = TrainingConfig(max_epochs=40, learning_rate=1e-2, val_interval=1, device="cpu")
+    checkpoint_path = train_model(
+        model, train_loader, val_loader, config, str(tmp_path / "checkpoints")
+    )
+
+    trained_model = build_unet(_UNET_CONFIG)
+    trained_model.load_state_dict(torch.load(checkpoint_path, map_location="cpu"))
+    trained_dice = _dice_on_loader(trained_model, val_loader)
+
+    untrained_dice = _dice_on_loader(build_unet(_UNET_CONFIG), val_loader)
+
+    assert trained_dice > 0.5
+    assert trained_dice > untrained_dice

@@ -33,6 +33,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `model_checkpoint_path`/`diffusion_checkpoint_path` flow from one real stage to
   the next automatically -- no prior test exercised that handoff outside a
   hand-built context.
+- Deepened `tests/test_segmentation_train.py` and `tests/test_diffusion_train.py`,
+  which previously only checked that training ran without error and produced a
+  loadable checkpoint ("smoke tests"). Added
+  `test_train_model_actually_learns_to_segment`, which trains for 40 epochs on an
+  easy synthetic pattern and asserts Dice is both above an absolute floor and
+  higher than a freshly initialized model's, and
+  `test_train_diffusion_model_actually_learns`, which trains for 60 epochs on a
+  fixed learnable pattern and asserts the noise-prediction MSE on a fixed,
+  seeded evaluation sample is lower than an untrained model's. Both compare
+  against an untrained baseline of the same architecture rather than asserting
+  an absolute threshold alone, so the tests fail if training silently becomes a
+  no-op even if some residual accuracy would otherwise pass a bare threshold.
 
 ## [0.12.0] - 2026-07-16
 
