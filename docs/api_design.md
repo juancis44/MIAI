@@ -36,5 +36,7 @@ Every public function/class docstring (Google style) documents:
 - Returns, with type
 - Raises, listing the specific MIAI exceptions it may raise
 
-This is enforced by review, and will be enforced by a docstring linter once
-`miai-core` stabilizes.
+This is enforced by review, and docstring *presence* (not full Args/Returns/
+Raises completeness) is additionally enforced in CI via `interrogate`
+(`[tool.interrogate]` in `pyproject.toml`, `style = "google"`,
+`fail-under = 85`).

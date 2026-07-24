@@ -45,6 +45,7 @@ dev = [
     "pytest-cov>=5.0",
     "mypy>=1.10",
     "pre-commit>=3.7",
+    "interrogate>=1.7",
     # Not a MIAI runtime dependency -- pinned here to patch
     # PYSEC-2026-3447 in the setuptools version pip installs by
     # default into the dev/CI environment (surfaced by the pip-audit
@@ -179,3 +180,13 @@ addopts = "-ra -q --cov=src --cov-report=term-missing --cov-fail-under=95"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
+
+[tool.interrogate]
+# Enforces docs/api_design.md's "Documentation contract": every public
+# function/class should have a (Google-style) docstring. Presence only --
+# interrogate doesn't check that Args/Returns/Raises sections are complete,
+# just that a docstring exists.
+style = "google"
+fail-under = 85
+exclude = ["tests", "examples", "scripts"]
+verbose = 1
