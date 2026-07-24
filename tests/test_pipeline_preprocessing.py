@@ -9,7 +9,12 @@ from miai_pipeline.context import PipelineContext
 from miai_pipeline.stages.preprocessing import PreprocessingConfig, PreprocessingStage
 
 
-def _write_synthetic_volume(path: Path, *, size=(20, 20, 10), spacing=(0.5, 0.5, 0.5)) -> None:
+def _write_synthetic_volume(
+    path: Path,
+    *,
+    size: tuple[int, int, int] = (20, 20, 10),
+    spacing: tuple[float, float, float] = (0.5, 0.5, 0.5),
+) -> None:
     array = (
         np.random.default_rng(0).normal(loc=100.0, scale=20.0, size=size[::-1]).astype(np.float32)
     )

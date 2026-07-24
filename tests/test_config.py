@@ -50,7 +50,7 @@ def test_from_yaml_unknown_field_raises_config_error(tmp_path: Path) -> None:
 def test_config_is_frozen() -> None:
     config = TrainingConfig(learning_rate=0.01, batch_size=8)
     with pytest.raises(pydantic.ValidationError):
-        config.batch_size = 16  # type: ignore[misc]
+        config.batch_size = 16
 
 
 def test_to_yaml_roundtrip(tmp_path: Path) -> None:

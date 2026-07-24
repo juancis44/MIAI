@@ -174,6 +174,26 @@ implicit_reexport = true
 module = "transformers.*"
 implicit_reexport = true
 
+[[tool.mypy.overrides]]
+# Test-only modules that call SimpleITK directly (building synthetic
+# volumes/DICOM series, asserting on written-out image geometry), same
+# rationale as the src-side SimpleITK override above: SimpleITK ships
+# no type stubs, so every call into it is "untyped" from mypy's
+# strict point of view. Module names here are bare filenames (no
+# "tests." prefix) because tests/ has no __init__.py, so mypy treats
+# each test file as its own top-level module.
+module = [
+    "conftest",
+    "test_pipeline_preprocessing",
+    "test_pipeline_dicom_to_nifti",
+    "test_registration_apply",
+    "test_registration_transform_io",
+    "test_diffusion_denoise",
+    "test_segmentation_infer",
+    "test_registration_register",
+]
+disallow_untyped_calls = false
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra -q --cov=src --cov-report=term-missing --cov-fail-under=95"

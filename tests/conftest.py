@@ -7,7 +7,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from pydicom.dataset import Dataset, FileDataset, FileMetaDataset
-from pydicom.uid import ExplicitVRLittleEndian, generate_uid
+from pydicom.uid import UID, ExplicitVRLittleEndian, generate_uid
 
 
 def make_dicom_dataset(
@@ -28,15 +28,18 @@ def make_dicom_dataset(
     written to disk and read back with pydicom, without requiring real
     pixel data.
     """
-    sop_instance_uid = sop_instance_uid or generate_uid()
+    resolved_sop_instance_uid = UID(sop_instance_uid) if sop_instance_uid else generate_uid()
 
     file_meta = FileMetaDataset()
-    file_meta.MediaStorageSOPClassUID = "1.2.840.10008.5.1.4.1.1.2"  # CT Image Storage
-    file_meta.MediaStorageSOPInstanceUID = sop_instance_uid
+    file_meta.MediaStorageSOPClassUID = UID("1.2.840.10008.5.1.4.1.1.2")  # CT Image Storage
+    file_meta.MediaStorageSOPInstanceUID = resolved_sop_instance_uid
     file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
 
     dataset = FileDataset(
-        filename_or_obj=None,
+        filename_or_obj=None,  # type: ignore[arg-type]
+        # pydicom's stub omits None from filename_or_obj's type even
+        # though the real implementation accepts it for in-memory-only
+        # datasets (nothing is read from or written to disk here).
         dataset=Dataset(),
         file_meta=file_meta,
         preamble=b"\x00" * 128,
@@ -45,7 +48,7 @@ def make_dicom_dataset(
     dataset.PatientName = patient_name
     dataset.StudyInstanceUID = study_instance_uid or generate_uid()
     dataset.SeriesInstanceUID = series_instance_uid or generate_uid()
-    dataset.SOPInstanceUID = sop_instance_uid
+    dataset.SOPInstanceUID = resolved_sop_instance_uid
     dataset.Modality = modality
     dataset.Rows = rows
     dataset.Columns = columns
@@ -56,7 +59,7 @@ def make_dicom_dataset(
 
 
 def make_dicom_series(
-    directory,
+    directory: Path | str,
     *,
     num_slices: int = 4,
     rows: int = 16,
@@ -65,7 +68,7 @@ def make_dicom_series(
     slice_thickness: float = 2.0,
     modality: str = "CT",
     series_instance_uid: str | None = None,
-):
+) -> list[Path]:
     """Write a synthetic, multi-slice DICOM series (with real pixel data)
     to ``directory`` and return the list of file paths written.
 
@@ -76,6 +79,7 @@ def make_dicom_series(
     import numpy as np
     from pydicom.uid import generate_uid
 
+    directory = Path(directory)
     series_instance_uid = series_instance_uid or generate_uid()
     study_instance_uid = generate_uid()
     paths = []
@@ -113,12 +117,12 @@ def make_dicom_series(
 
 
 def make_synthetic_volume_pair(
-    directory,
+    directory: Path | str,
     *,
     name: str = "case0",
     size: tuple[int, int, int] = (16, 16, 16),
     spacing: tuple[float, float, float] = (1.0, 1.0, 1.0),
-):
+) -> tuple[Path, Path]:
     """Write a synthetic image + binary label NIfTI pair to ``directory``.
 
     Used by miai_datasets / miai_segmentation tests, which need real
@@ -170,13 +174,13 @@ def make_synthetic_volume_pair(
 
 
 def make_offset_cube_volume(
-    directory,
+    directory: Path | str,
     *,
     name: str = "cube",
     size: tuple[int, int, int] = (32, 32, 32),
     offset: tuple[int, int, int] = (0, 0, 0),
     spacing: tuple[float, float, float] = (1.0, 1.0, 1.0),
-):
+) -> Path:
     """Write a synthetic NIfTI volume with a solid cube, optionally offset.
 
     Used by miai_registration tests to build a "fixed" reference volume
