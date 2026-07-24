@@ -175,7 +175,7 @@ implicit_reexport = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra -q --cov=src --cov-report=term-missing"
+addopts = "-ra -q --cov=src --cov-report=term-missing --cov-fail-under=95"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]

@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `--cov-fail-under=95` in pytest's `addopts`. Coverage was already reported
+  (`--cov-report=term-missing`) but never enforced -- a PR could silently drop
+  coverage and still pass CI. Current coverage is ~98% (2064 statements, 39
+  missing per the last CI run), so 95% leaves headroom for legitimately
+  hard-to-cover branches (error paths in torch/monai fix-forward code, mostly)
+  while still catching a real regression.
 - `cache: pip` in `actions/setup-python` for both `ci.yml` and `security.yml`, keyed
   on `pyproject.toml` -- the ~2 minute `pip install -e ".[dev]"` step (torch + monai
   are the bulk of it) now hits GitHub's Actions cache on unchanged dependencies
