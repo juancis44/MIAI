@@ -1,0 +1,109 @@
+# Example MIAI pipeline config: the full main clinical workflow --
+#   DICOM -> NIfTI -> Preprocessing -> Dataset -> Training -> Inference -> Evaluation
+# for binary segmentation.
+#
+# This is the same config referenced (illustratively) in the root
+# README.md's "Quick example" sections. Run it either from Python
+# (see examples/segmentation_pipeline.py, which also generates the
+# synthetic DICOM/label data this config expects) or from the command
+# line via the miai-pipeline console script:
+#
+#   miai-pipeline validate examples/configs/pipeline.yaml
+#   miai-pipeline run examples/configs/pipeline.yaml \
+#       --set dicom_dir=/path/to/dicom \
+#       --set label_paths='["/path/to/case0_label.nii.gz", "..."]'
+#
+# Two context keys must be provided before this pipeline runs, since no
+# stage produces them:
+#   - dicom_dir: a directory containing one or more DICOM series.
+#   - label_paths: one ground-truth segmentation NIfTI per DICOM series
+#     found, in the same order DicomToNiftiStage discovers them (DICOM
+#     itself carries no segmentation masks, so labels can't come from
+#     any earlier stage in this pipeline -- see
+#     examples/segmentation_pipeline.py for how synthetic ones are
+#     built and ordered to match).
+#
+# Architecture and epoch count below are deliberately tiny (a 3-level
+# UNet, 5 epochs) so this config finishes in well under a minute on a
+# CPU-only machine with synthetic data -- it demonstrates the wiring
+# between stages, not a clinically useful model. Swap in a larger
+# `unet`/`training.max_epochs` for real data.
+
+stages:
+  - type: dicom_to_nifti
+    params:
+      output_dir: examples/output/nifti
+
+  - type: preprocessing
+    params:
+      output_dir: examples/output/preprocessed
+      target_spacing: [1.0, 1.0, 1.0]
+      interpolation: linear
+      normalization: zscore
+
+  - type: dataset
+    params:
+      manifest_path: examples/output/manifest.json
+      context_key: preprocessed_paths
+      label_context_key: label_paths
+      val_fraction: 0.34
+      test_fraction: 0.34
+      seed: 42
+
+  - type: training
+    params:
+      checkpoint_dir: examples/output/checkpoints
+      unet:
+        channels: [16, 32, 64]
+        strides: [2, 2]
+        num_res_units: 1
+      training:
+        max_epochs: 5
+        learning_rate: 0.001
+        val_interval: 1
+        device: cpu
+      dataloader:
+        batch_size: 1
+        cache_rate: 0.0
+      train_transforms:
+        transforms:
+          - name: load_image
+            params: { keys: [image, label] }
+          - name: rand_flip
+            params: { keys: [image, label], prob: 0.5, spatial_axis: 0 }
+          - name: ensure_type
+            params: { keys: [image, label] }
+      val_transforms:
+        transforms:
+          - name: load_image
+            params: { keys: [image, label] }
+          - name: ensure_type
+            params: { keys: [image, label] }
+
+  - type: inference
+    params:
+      output_dir: examples/output/predictions
+      unet:
+        channels: [16, 32, 64]
+        strides: [2, 2]
+        num_res_units: 1
+      inference:
+        roi_size: [32, 32, 32]
+        sw_batch_size: 1
+        overlap: 0.25
+        threshold: 0.5
+        device: cpu
+      transforms:
+        transforms:
+          - name: load_image
+            params: { keys: [image] }
+          - name: ensure_type
+            params: { keys: [image] }
+
+  - type: evaluation
+    params:
+      report_path: examples/output/evaluation_report.json
+      metrics:
+        include_dice: true
+        include_hausdorff: true
+        include_iou: true
