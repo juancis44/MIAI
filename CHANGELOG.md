@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `cache: pip` in `actions/setup-python` for both `ci.yml` and `security.yml`, keyed
+  on `pyproject.toml` -- the ~2 minute `pip install -e ".[dev]"` step (torch + monai
+  are the bulk of it) now hits GitHub's Actions cache on unchanged dependencies
+  instead of reinstalling from PyPI every run.
 - `.github/dependabot.yml`: weekly automated dependency-update PRs for the `pip`
   (root `pyproject.toml`) and `github-actions` ecosystems.
 - `.github/workflows/security.yml`: `pip-audit` scan against the fully installed
