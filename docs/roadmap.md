@@ -192,6 +192,15 @@ state review at the end of Phase 6:
   stage's real output). `feature_extraction`, `reconstruction`, and
   `visualization` remain covered only in isolation, not chained -- a possible
   future addition, not done now.
+- [x] Training tests now verify real learning, not just that training runs:
+  `test_train_model_actually_learns_to_segment`
+  (`tests/test_segmentation_train.py`) and
+  `test_train_diffusion_model_actually_learns`
+  (`tests/test_diffusion_train.py`) each compare a trained model against a
+  freshly initialized model of the same architecture on the same evaluation
+  data -- Dice for segmentation, noise-prediction MSE for diffusion -- so a
+  training loop that silently stops updating weights (e.g. a broken optimizer
+  step) would now fail CI instead of passing a "ran without crashing" check.
 
 ## Working principle
 
