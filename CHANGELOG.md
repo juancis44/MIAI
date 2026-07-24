@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `interrogate` docstring-completeness check in CI (`interrogate src`), gated
+  by `[tool.interrogate]` in `pyproject.toml` (`style = "google"`,
+  `fail-under = 85`, current actual is 87.1%). Enforces the *presence* of
+  public function/class docstrings from `docs/api_design.md`'s Documentation
+  contract -- not full Args/Returns/Raises completeness, which would need a
+  stricter tool (e.g. `pydocstyle`'s `D417`) and a larger cleanup pass across
+  all 13 packages to pass without a flood of pre-existing findings.
 - `requirements-lock.txt`: a full dependency lockfile generated with
   `uv pip compile pyproject.toml --extra dev --universal --python-version 3.11`,
   pinning every direct and transitive dependency to an exact version.

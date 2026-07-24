@@ -191,8 +191,12 @@ state review at the end of Phase 6:
   `ci.yml`/`security.yml` install from it instead of resolving fresh against
   `pyproject.toml`'s lower bounds every run. Regeneration is manual (see
   `docs/coding_standards.md`) -- Dependabot doesn't update it automatically yet.
-- [ ] Docstring-completeness linter (e.g. `interrogate`/`pydocstyle`) in CI, per
-  `docs/api_design.md`'s Documentation contract
+- [x] Docstring-completeness linter: `interrogate` in CI (`interrogate src`),
+  configured via `[tool.interrogate]` in `pyproject.toml`
+  (`style = "google"`, `fail-under = 85`, current actual 87.1%). Checks
+  docstring *presence* per `docs/api_design.md`'s Documentation contract, not
+  full Args/Returns/Raises completeness -- that would need `pydocstyle` and a
+  larger cleanup pass, not done now.
 - [x] Deepened `tests/test_pipeline_end_to_end.py`: previously only chained
   `dicom_to_nifti -> preprocessing -> dataset` (3 of ~13 stages) via a real
   `Pipeline.from_config` run. Added: the same data-prep chain extended through

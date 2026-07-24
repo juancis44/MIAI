@@ -42,5 +42,8 @@ jobs:
       - name: Type check (mypy)
         run: mypy src
 
+      - name: Docstring completeness (interrogate)
+        run: interrogate src
+
       - name: Run tests
         run: pytest

@@ -8,6 +8,8 @@ anyio==4.14.2
     # via httpx
 ast-serialize==0.6.0
     # via mypy
+attrs==26.1.0
+    # via interrogate
 black==26.5.1
     # via miai-core (pyproject.toml)
 certifi==2026.7.22
@@ -20,9 +22,11 @@ click==8.4.2
     # via
     #   black
     #   huggingface-hub
-colorama==0.4.6 ; sys_platform == 'win32'
+    #   interrogate
+colorama==0.4.6
     # via
     #   click
+    #   interrogate
     #   pytest
     #   tqdm
     #   typer
@@ -75,6 +79,8 @@ imageio==2.37.4
     # via scikit-image
 iniconfig==2.3.0
     # via pytest
+interrogate==1.7.0
+    # via miai-core (pyproject.toml)
 jinja2==3.1.6
     # via torch
 kiwisolver==1.5.0
@@ -210,6 +216,8 @@ pre-commit==4.6.1
     # via miai-core (pyproject.toml)
 protobuf==7.35.1
     # via onnx
+py==1.11.0
+    # via interrogate
 pydantic==2.13.4
     # via miai-core (pyproject.toml)
 pydantic-core==2.46.4
@@ -270,6 +278,8 @@ six==1.17.0
     # via python-dateutil
 sympy==1.14.0
     # via torch
+tabulate==0.10.0
+    # via interrogate
 tifffile==2026.3.3 ; python_full_version < '3.12'
     # via scikit-image
 tifffile==2026.7.14 ; python_full_version >= '3.12'
