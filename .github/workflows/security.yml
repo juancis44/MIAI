@@ -12,6 +12,7 @@ on:
     branches: [main]
     paths:
       - "pyproject.toml"
+      - "requirements-lock.txt"
 
 jobs:
   pip-audit:
@@ -24,10 +25,12 @@ jobs:
         with:
           python-version: "3.11"
           cache: "pip"
-          cache-dependency-path: pyproject.toml
+          cache-dependency-path: requirements-lock.txt
 
       - name: Install package
-        run: pip install -e ".[dev]"
+        run: |
+          pip install -r requirements-lock.txt
+          pip install -e . --no-deps
 
       - name: Install pip-audit
         run: pip install pip-audit

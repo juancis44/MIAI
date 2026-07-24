@@ -43,3 +43,27 @@ assumptions inside `src/`.
 Keep dependencies minimal and justified. Prefer depending on the specific
 library a task needs (e.g., SimpleITK for a registration routine) over
 introducing a new dependency that duplicates existing functionality.
+
+### Lockfile
+
+`pyproject.toml` only sets lower bounds (`torch>=2.2`, etc.) -- it defines
+what MIAI is compatible with, not what CI actually installs.
+`requirements-lock.txt` pins every dependency, direct and transitive, to an
+exact version, and is what `ci.yml`/`security.yml` install from
+(`pip install -r requirements-lock.txt`, then `pip install -e . --no-deps`
+for the package itself), so every run installs identical versions instead
+of whatever the resolver would pick that day.
+
+Regenerate it after changing `pyproject.toml`'s dependencies (adding,
+removing, or re-bounding a package):
+
+```bash
+uv pip compile pyproject.toml --extra dev --universal --python-version 3.11 -o requirements-lock.txt
+```
+
+`--universal` resolves for every supported OS/architecture (embedding
+environment markers where versions differ, e.g. `scipy` between Python 3.11
+and 3.12) rather than just the resolving machine's own platform.
+Dependabot still opens PRs against `pyproject.toml`'s bounds as before; the
+lockfile is not currently auto-updated by Dependabot and needs a manual
+regeneration + PR when a bound changes.

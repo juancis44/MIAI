@@ -186,8 +186,11 @@ state review at the end of Phase 6:
   (computed directly -- MONAI has no built-in metric for it) alongside the
   existing Dice/HD95. All four are opt-in flags on `MetricsConfig`, defaulting
   to `False`, so no existing config or report format changes.
-- [ ] Dependency lockfile for fully reproducible installs (today's `pyproject.toml`
-  only sets lower bounds)
+- [x] Dependency lockfile: `requirements-lock.txt`, generated via
+  `uv pip compile pyproject.toml --extra dev --universal --python-version 3.11`.
+  `ci.yml`/`security.yml` install from it instead of resolving fresh against
+  `pyproject.toml`'s lower bounds every run. Regeneration is manual (see
+  `docs/coding_standards.md`) -- Dependabot doesn't update it automatically yet.
 - [ ] Docstring-completeness linter (e.g. `interrogate`/`pydocstyle`) in CI, per
   `docs/api_design.md`'s Documentation contract
 - [x] Deepened `tests/test_pipeline_end_to_end.py`: previously only chained

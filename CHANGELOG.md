@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `requirements-lock.txt`: a full dependency lockfile generated with
+  `uv pip compile pyproject.toml --extra dev --universal --python-version 3.11`,
+  pinning every direct and transitive dependency to an exact version.
+  `ci.yml` and `security.yml` now install from it
+  (`pip install -r requirements-lock.txt` + `pip install -e . --no-deps`)
+  instead of resolving fresh against `pyproject.toml`'s lower bounds on every
+  run, for fully reproducible installs. Regeneration instructions are in
+  `docs/coding_standards.md`. Dependabot still targets `pyproject.toml`'s
+  bounds; the lockfile needs a manual regen when those change (not yet
+  automated).
 - Four new metrics in `miai_evaluation.metrics.compute_case_metrics`, all
   opt-in via `MetricsConfig` (default `False`, so existing configs/reports
   are unaffected): `include_iou` (Jaccard index, via MONAI's `MeanIoU`),
