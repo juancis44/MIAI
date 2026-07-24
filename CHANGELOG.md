@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Four new metrics in `miai_evaluation.metrics.compute_case_metrics`, all
+  opt-in via `MetricsConfig` (default `False`, so existing configs/reports
+  are unaffected): `include_iou` (Jaccard index, via MONAI's `MeanIoU`),
+  `include_sensitivity`/`include_specificity` (via MONAI's
+  `ConfusionMatrixMetric`), and `include_volume_similarity` (Taha & Hanbury's
+  `1 - |Vp - Vg| / (Vp + Vg)`, computed directly since MONAI doesn't expose
+  this one -- a purely count-based measure that stays informative even when
+  Dice/IoU are 0 because two same-sized masks don't overlap spatially).
 - `--cov-fail-under=95` in pytest's `addopts`. Coverage was already reported
   (`--cov-report=term-missing`) but never enforced -- a PR could silently drop
   coverage and still pass CI. Current coverage is ~98% (2064 statements, 39
