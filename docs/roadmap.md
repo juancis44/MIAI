@@ -166,7 +166,11 @@ state review at the end of Phase 6:
   terminal without writing Python, matching the "configuration over code" principle.
 - [x] Fixed `examples/README.md` and `scripts/README.md`, both still worded as if the
   project were in Phase 0/1.
-- [ ] PyPI packaging/publishing workflow
+- [ ] PyPI packaging/publishing workflow (paused -- explicit user decision, revisit later)
+- [x] `cache: pip` in `actions/setup-python` for both `ci.yml` and `security.yml`,
+  keyed on `pyproject.toml` -- the install step (torch + monai are the bulk of it)
+  now reuses GitHub's Actions cache on unchanged dependencies instead of
+  reinstalling from PyPI on every single run.
 - [x] Dependency update/security automation (Dependabot for `pip` + `github-actions`;
   weekly `pip-audit` scan against the installed environment, plus on any
   `pyproject.toml` change, in a separate `security.yml` workflow that doesn't block
