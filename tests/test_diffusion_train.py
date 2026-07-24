@@ -55,7 +55,9 @@ def _fixed_pattern_loader(n_batches: int, batch_size: int = 1) -> list[dict[str,
     """
     pattern = torch.zeros(1, 1, 8, 8, 8)
     pattern[:, :, 2:6, 2:6, 2:6] = 1.0
-    return [pattern.repeat(batch_size, 1, 1, 1, 1).clone() for _ in range(n_batches)]
+    return [
+        {"image": pattern.repeat(batch_size, 1, 1, 1, 1).clone()} for _ in range(n_batches)
+    ]
 
 
 @pytest.mark.slow
@@ -82,7 +84,7 @@ def test_train_diffusion_model_actually_learns(tmp_path: Path) -> None:
     untrained_model = build_diffusion_unet(_UNET_CONFIG)
     untrained_model.load_state_dict(initial_state)
 
-    x0 = _fixed_pattern_loader(1)[0]
+    x0 = _fixed_pattern_loader(1)[0]["image"]
     generator = torch.Generator().manual_seed(123)
     t = torch.randint(0, schedule.config.num_timesteps, (x0.shape[0],), generator=generator)
     noise = torch.randn(x0.shape, generator=generator)
