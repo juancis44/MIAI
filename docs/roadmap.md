@@ -178,7 +178,9 @@ state review at the end of Phase 6:
   Security for private repositories, which this repo doesn't have; `pip-audit`
   covers the actual risk here (vulnerable dependencies), since MIAI has no
   custom C extensions or unsafe deserialization of untrusted input to scan for.
-- [ ] Coverage threshold enforcement in CI (`--cov-fail-under`)
+- [x] Coverage threshold enforcement: `--cov-fail-under=95` in pytest's `addopts`
+  (current coverage is ~98%, so this catches real regressions while leaving
+  headroom for hard-to-cover fix-forward error paths).
 - [ ] Dependency lockfile for fully reproducible installs (today's `pyproject.toml`
   only sets lower bounds)
 - [ ] Docstring-completeness linter (e.g. `interrogate`/`pydocstyle`) in CI, per
