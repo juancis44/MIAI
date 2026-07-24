@@ -22,6 +22,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   DICOM/label data this config expects comes next.
 - `examples/output/` added to `.gitignore` (generated when the example
   scripts run).
+- `examples/segmentation_pipeline.py`: a runnable script (standalone --
+  does not import `tests/conftest.py`, which is test-only fixture code)
+  that generates a small synthetic dataset (10 multi-slice DICOM series
+  plus matching NIfTI labels, no patient data) and runs it through
+  `examples/configs/pipeline.yaml` end to end via `Pipeline.from_config`,
+  printing the dataset split, checkpoint path, prediction count, and mean
+  evaluation metrics. Case directories are named `case_000`, `case_001`,
+  ... so `miai_dicom.series.load_series`'s `sorted(rglob(...))` traversal
+  discovers series in the same order labels are generated, keeping
+  `DatasetStage`'s `label_context_key` alignment correct without needing
+  to inspect series UIDs after the fact. Second of three planned
+  `miai-examples` deliverables (see `docs/roadmap.md`).
+- Adjusted `examples/configs/pipeline.yaml`'s `val_fraction`/`test_fraction`
+  from 0.34/0.34 to 0.3/0.3, to pair with `segmentation_pipeline.py`'s 10
+  synthetic cases for a cleaner 4/3/3 train/val/test split.
 
 ## [0.13.0] - 2026-07-24
 

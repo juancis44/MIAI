@@ -46,8 +46,8 @@ stages:
       manifest_path: examples/output/manifest.json
       context_key: preprocessed_paths
       label_context_key: label_paths
-      val_fraction: 0.34
-      test_fraction: 0.34
+      val_fraction: 0.3
+      test_fraction: 0.3
       seed: 42
 
   - type: training

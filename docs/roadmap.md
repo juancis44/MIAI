@@ -239,10 +239,12 @@ Approved scope, three deliverables:
   -> Training -> Inference -> Evaluation). Closes a dangling reference --
   `README.md` and the `miai-pipeline` CLI usage snippet already pointed at
   `configs/pipeline.yaml` as if it existed.
-- [ ] `examples/segmentation_pipeline.py`: a runnable script that generates
+- [x] `examples/segmentation_pipeline.py`: a runnable script that generates
   synthetic DICOM images and NIfTI labels (standalone -- does not import
   from `tests/conftest.py`, which is test-only) and runs the config above
-  end to end via `Pipeline.from_config`.
+  end to end via `Pipeline.from_config`. 10 synthetic cases, named
+  `case_000`.. so DICOM series discovery order matches generated label
+  order without inspecting UIDs.
 - [ ] `examples/diffusion_denoising.py`: a runnable script demonstrating an
   optional stage outside the main segmentation workflow (DDPM training +
   denoising), showing the ecosystem extends beyond the reference pipeline.
