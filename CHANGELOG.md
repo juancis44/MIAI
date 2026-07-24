@@ -7,29 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Fixed
-
-- `mypy tests` in CI (see below) surfaced several real over-tight production
-  type signatures, fixed properly rather than papered over in tests:
-  - `train_diffusion_model`, `train_model`, and `run_inference` required a
-    concrete `monai.data.DataLoader`, even though each only ever iterates
-    over it once per epoch. Loosened all three to
-    `Iterable[dict[str, torch.Tensor]]`, letting tests pass plain lists or
-    lightweight fakes without a type mismatch -- and documenting the real
-    contract more accurately in the process.
-  - `extract_embeddings_for_paths` required a concrete `FeatureExtractor`.
-    Added a new `EmbeddingExtractor` Protocol (same pattern as the existing
-    `_ImageProcessor` Protocol in the same module) exposing just
-    `extract_volume_embedding`, and typed the parameter against that
-    instead, so tests can inject a fake extractor without subclassing.
-  - `plot_metric_summary`'s `values: dict[str, float | list[float]]` param
-    rejected a plain `dict[str, float]` at call sites, since `dict` is
-    invariant in its value type. Changed to `Mapping[str, float | list[float]]`
-    (mypy's own suggested fix; the function never mutates `values`).
-  - `evaluate_predictions` returned a bare `dict[str, object]`, so
-    `report["mean"]["dice"]`-style indexing failed statically even though
-    the real shape is fixed. Added an `EvaluationReport` TypedDict
-    documenting the actual `{"per_case": [...], "mean": {...}}` structure.
+## [0.13.0] - 2026-07-24
 
 ### Added
 
@@ -92,6 +70,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- `mypy tests` in CI (see below) surfaced several real over-tight production
+  type signatures, fixed properly rather than papered over in tests:
+  - `train_diffusion_model`, `train_model`, and `run_inference` required a
+    concrete `monai.data.DataLoader`, even though each only ever iterates
+    over it once per epoch. Loosened all three to
+    `Iterable[dict[str, torch.Tensor]]`, letting tests pass plain lists or
+    lightweight fakes without a type mismatch -- and documenting the real
+    contract more accurately in the process.
+  - `extract_embeddings_for_paths` required a concrete `FeatureExtractor`.
+    Added a new `EmbeddingExtractor` Protocol (same pattern as the existing
+    `_ImageProcessor` Protocol in the same module) exposing just
+    `extract_volume_embedding`, and typed the parameter against that
+    instead, so tests can inject a fake extractor without subclassing.
+  - `plot_metric_summary`'s `values: dict[str, float | list[float]]` param
+    rejected a plain `dict[str, float]` at call sites, since `dict` is
+    invariant in its value type. Changed to `Mapping[str, float | list[float]]`
+    (mypy's own suggested fix; the function never mutates `values`).
+  - `evaluate_predictions` returned a bare `dict[str, object]`, so
+    `report["mean"]["dice"]`-style indexing failed statically even though
+    the real shape is fixed. Added an `EvaluationReport` TypedDict
+    documenting the actual `{"per_case": [...], "mean": {...}}` structure.
 - Pinned `setuptools>=83.0.0` in dev dependencies (PYSEC-2026-3447, found by the new
   pip-audit workflow on its first real run).
 - Bumped `actions/checkout` to v5 and `actions/setup-python` to v6 in both workflows
