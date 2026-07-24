@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `examples/configs/pipeline.yaml`: a real, runnable pipeline config for the
+  full main clinical workflow (DICOM -> NIfTI -> Preprocessing -> Dataset ->
+  Training -> Inference -> Evaluation), closing a dangling reference --
+  `README.md`'s "Quick example" sections and the `miai-pipeline` CLI usage
+  snippet already mentioned `configs/pipeline.yaml` as if it existed, but no
+  such file was ever committed. Deliberately tiny architecture/epoch count
+  (3-level UNet, 5 epochs) so it finishes in under a minute on CPU with
+  synthetic data. First of three planned `miai-examples` deliverables (see
+  `docs/roadmap.md`); the accompanying runnable script
+  (`examples/segmentation_pipeline.py`) that generates the synthetic
+  DICOM/label data this config expects comes next.
+- `examples/output/` added to `.gitignore` (generated when the example
+  scripts run).
+
 ## [0.13.0] - 2026-07-24
 
 ### Added

@@ -227,6 +227,28 @@ state review at the end of Phase 6:
   training loop that silently stops updating weights (e.g. a broken optimizer
   step) would now fail CI instead of passing a "ran without crashing" check.
 
+## Phase 7 -- miai-examples
+
+The last package in `docs/architecture.md`'s ecosystem diagram still marked
+`[planned]`. Scoped after a project-state review (2026-07-24): end-to-end
+example workflows combining several MIAI packages, no new dependencies.
+Approved scope, three deliverables:
+
+- [x] `examples/configs/pipeline.yaml`: a real, runnable pipeline config for
+  the full main clinical workflow (DICOM -> NIfTI -> Preprocessing -> Dataset
+  -> Training -> Inference -> Evaluation). Closes a dangling reference --
+  `README.md` and the `miai-pipeline` CLI usage snippet already pointed at
+  `configs/pipeline.yaml` as if it existed.
+- [ ] `examples/segmentation_pipeline.py`: a runnable script that generates
+  synthetic DICOM images and NIfTI labels (standalone -- does not import
+  from `tests/conftest.py`, which is test-only) and runs the config above
+  end to end via `Pipeline.from_config`.
+- [ ] `examples/diffusion_denoising.py`: a runnable script demonstrating an
+  optional stage outside the main segmentation workflow (DDPM training +
+  denoising), showing the ecosystem extends beyond the reference pipeline.
+- [ ] Updated `examples/README.md` describing each example and how to run
+  it, replacing the current stub.
+
 ## Working principle
 
 We do not start a phase's package until the previous phase's foundations are
