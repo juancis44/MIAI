@@ -153,6 +153,8 @@ module = [
     "miai_visualization.curves",
     "miai_visualization.metrics",
     "miai_visualization.embeddings",
+    "test_deploy_export",
+    "test_segmentation_train",
 ]
 disallow_untyped_calls = false
 disallow_untyped_defs = false

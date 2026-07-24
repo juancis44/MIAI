@@ -42,8 +42,9 @@ class EvaluationStage(PipelineStage):
         same order ``prediction_paths`` was produced in.
 
     Writes:
-        ``metrics`` (``dict[str, object]``): ``{"per_case": [...],
-        "mean": {...}}``, as returned by
+        ``metrics``
+        (:class:`~miai_evaluation.evaluate.EvaluationReport`):
+        ``{"per_case": [...], "mean": {...}}``, as returned by
         :func:`miai_evaluation.evaluate.evaluate_predictions`.
     """
 

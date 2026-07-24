@@ -9,6 +9,7 @@ produced them.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Literal
 
@@ -40,7 +41,7 @@ class PlotMetricSummaryConfig(MIAIBaseConfig):
 
 
 def plot_metric_summary(
-    values: dict[str, float | list[float]],
+    values: Mapping[str, float | list[float]],
     output_path: str,
     config: PlotMetricSummaryConfig | None = None,
 ) -> Path:

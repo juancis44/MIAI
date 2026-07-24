@@ -72,6 +72,19 @@ class _ImageProcessor(Protocol):
     def __call__(self, images: list[Any], return_tensors: str) -> Any: ...
 
 
+class EmbeddingExtractor(Protocol):
+    """The subset of :class:`FeatureExtractor`'s interface that
+    :func:`~miai_foundation_models.run.extract_embeddings_for_paths` needs.
+
+    Declared as a :class:`typing.Protocol` (same rationale as
+    :class:`_ImageProcessor` above) so callers -- and tests -- can pass
+    any object with a matching ``extract_volume_embedding``, not just a
+    real :class:`FeatureExtractor`, without needing to subclass it.
+    """
+
+    def extract_volume_embedding(self, volume: npt.NDArray[Any]) -> torch.Tensor: ...
+
+
 class FeatureExtractor:
     """Extracts a per-volume embedding using a pretrained 2D vision model.
 

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import Path
 
 import torch
-from monai.data import DataLoader
 
 from miai_core.config import MIAIBaseConfig
 from miai_core.io import ensure_dir
@@ -38,7 +38,7 @@ class DiffusionTrainingConfig(MIAIBaseConfig):
 
 def train_diffusion_model(
     model: torch.nn.Module,
-    train_loader: DataLoader,
+    train_loader: Iterable[dict[str, torch.Tensor]],
     schedule: NoiseSchedule,
     config: DiffusionTrainingConfig,
     checkpoint_dir: str,
@@ -55,7 +55,10 @@ def train_diffusion_model(
     Args:
         model: The noise-prediction model to train (e.g. from
             :func:`miai_diffusion.model.build_diffusion_unet`).
-        train_loader: Yields batches with an ``"image"`` key.
+        train_loader: Any iterable of batches with an ``"image"`` key
+            (typically a :class:`torch.utils.data.DataLoader`, but any
+            iterable works -- this function only ever iterates over
+            it once per epoch, nothing DataLoader-specific).
         schedule: The noise schedule training samples ``t`` from and
             forms ``x_t`` with. Its tensors should already be on
             ``config.device`` (see the ``device`` argument of
