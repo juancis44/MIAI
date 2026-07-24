@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import Path
 
 import torch
-from monai.data import DataLoader, decollate_batch
+from monai.data import decollate_batch
 from monai.losses import DiceLoss
 from monai.metrics import DiceMetric
 from monai.transforms import AsDiscrete, Compose
@@ -41,8 +42,8 @@ class TrainingConfig(MIAIBaseConfig):
 
 def train_model(
     model: torch.nn.Module,
-    train_loader: DataLoader,
-    val_loader: DataLoader | None,
+    train_loader: Iterable[dict[str, torch.Tensor]],
+    val_loader: Iterable[dict[str, torch.Tensor]] | None,
     config: TrainingConfig,
     checkpoint_dir: str,
 ) -> Path:
@@ -58,8 +59,11 @@ def train_model(
     Args:
         model: The model to train (e.g. from
             :func:`miai_segmentation.models.build_unet`).
-        train_loader: Yields batches with ``"image"`` and ``"label"``
-            keys.
+        train_loader: Any iterable of batches with ``"image"`` and
+            ``"label"`` keys (typically a
+            :class:`torch.utils.data.DataLoader`, but any iterable
+            works -- this function only ever iterates over it once per
+            epoch, nothing DataLoader-specific).
         val_loader: Optional validation loader with the same batch
             shape as ``train_loader``. If ``None``, validation is
             skipped and the last epoch's weights are checkpointed.

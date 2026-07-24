@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from miai_foundation_models.exceptions import FoundationModelError
 from miai_foundation_models.extractor import (
+    EmbeddingExtractor,
     FeatureExtractor,
     FeatureExtractorConfig,
     save_embedding,
@@ -25,6 +26,7 @@ __version__ = "0.1.0"
 
 __all__ = [
     "FoundationModelError",
+    "EmbeddingExtractor",
     "FeatureExtractor",
     "FeatureExtractorConfig",
     "save_embedding",

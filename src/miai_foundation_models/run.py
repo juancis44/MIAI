@@ -9,13 +9,13 @@ import SimpleITK as sitk
 from miai_core.io import ensure_dir
 from miai_core.logging import get_logger
 from miai_foundation_models.exceptions import FoundationModelError
-from miai_foundation_models.extractor import FeatureExtractor, save_embedding
+from miai_foundation_models.extractor import EmbeddingExtractor, save_embedding
 
 logger = get_logger(__name__)
 
 
 def extract_embeddings_for_paths(
-    extractor: FeatureExtractor,
+    extractor: EmbeddingExtractor,
     source_paths: list[str],
     output_dir: str,
 ) -> list[Path]:
@@ -27,7 +27,10 @@ def extract_embeddings_for_paths(
     a ``.pt`` tensor file next to a name derived from the source file.
 
     Args:
-        extractor: A ready-to-use :class:`~miai_foundation_models.extractor.FeatureExtractor`.
+        extractor: A ready-to-use
+            :class:`~miai_foundation_models.extractor.FeatureExtractor`
+            (or any object satisfying
+            :class:`~miai_foundation_models.extractor.EmbeddingExtractor`).
         source_paths: Volumes to embed.
         output_dir: Directory embeddings are written to (created if
             missing).

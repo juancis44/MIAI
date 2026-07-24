@@ -3,16 +3,32 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TypedDict, cast
 
 import SimpleITK as sitk
 import torch
 
 from miai_core.io import write_json
 from miai_core.logging import get_logger
+from miai_core.typing import JSONDict
 from miai_evaluation.exceptions import EvaluationError
 from miai_evaluation.metrics import MetricsConfig, compute_case_metrics
 
 logger = get_logger(__name__)
+
+
+class EvaluationReport(TypedDict):
+    """The structure :func:`evaluate_predictions` returns.
+
+    A plain ``dict[str, object]`` return type would force every caller
+    (including tests) to ``cast`` or re-check types before indexing
+    into ``"mean"``/``"per_case"``, since ``object`` values aren't
+    further indexable under mypy. This ``TypedDict`` documents the
+    real, stable shape instead.
+    """
+
+    per_case: list[dict[str, object]]
+    mean: dict[str, float]
 
 
 def _load_mask(path: str) -> torch.Tensor:
@@ -25,7 +41,7 @@ def evaluate_predictions(
     ground_truth_paths: list[str],
     config: MetricsConfig,
     output_path: str | None = None,
-) -> dict[str, object]:
+) -> EvaluationReport:
     """Score predictions against ground truth and aggregate metrics.
 
     Reads each prediction/ground-truth pair from disk via SimpleITK
@@ -78,9 +94,13 @@ def evaluate_predictions(
         name: sum(m[name] for m in all_metrics) / len(all_metrics) for name in metric_names
     }
 
-    report: dict[str, object] = {"per_case": per_case, "mean": mean_metrics}
+    report: EvaluationReport = {"per_case": per_case, "mean": mean_metrics}
 
     if output_path is not None:
-        write_json(report, output_path)
+        # write_json expects a plain JSONDict (dict[str, Any]); mypy
+        # doesn't consider a TypedDict assignable to that even though
+        # it's the same dict at runtime, since TypedDict is checked
+        # structurally rather than as a dict[str, V] subtype.
+        write_json(cast(JSONDict, report), output_path)
 
     return report

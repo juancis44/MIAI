@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import Path
 
 import SimpleITK as sitk
 import torch
-from monai.data import DataLoader
 from monai.inferers import sliding_window_inference
 
 from miai_core.config import MIAIBaseConfig
@@ -39,7 +39,7 @@ class InferenceConfig(MIAIBaseConfig):
 
 def run_inference(
     model: torch.nn.Module,
-    data_loader: DataLoader,
+    data_loader: Iterable[dict[str, torch.Tensor]],
     source_paths: list[str],
     checkpoint_path: str,
     config: InferenceConfig,
@@ -66,7 +66,11 @@ def run_inference(
         model: An untrained model with the same architecture used to
             produce ``checkpoint_path`` (e.g. via
             :func:`miai_segmentation.models.build_unet`).
-        data_loader: Yields one-case batches with an ``"image"`` key.
+        data_loader: Any iterable of one-case batches with an
+            ``"image"`` key (typically a
+            :class:`torch.utils.data.DataLoader`, but any iterable
+            works -- this function only ever iterates over it once,
+            nothing DataLoader-specific).
         source_paths: The original (pre-transform) image file path for
             each item in ``data_loader``, in the same order -- used to
             copy spatial metadata into the prediction and to name the

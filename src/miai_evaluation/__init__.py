@@ -11,7 +11,7 @@ aggregates per-case metrics into a summary report. Used by
 the final step of the clinical workflow.
 """
 
-from miai_evaluation.evaluate import evaluate_predictions
+from miai_evaluation.evaluate import EvaluationReport, evaluate_predictions
 from miai_evaluation.exceptions import EvaluationError
 from miai_evaluation.metrics import MetricsConfig, compute_case_metrics
 
@@ -19,6 +19,7 @@ __version__ = "0.1.0"
 
 __all__ = [
     "evaluate_predictions",
+    "EvaluationReport",
     "EvaluationError",
     "MetricsConfig",
     "compute_case_metrics",
