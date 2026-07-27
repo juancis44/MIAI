@@ -186,11 +186,15 @@ state review at the end of Phase 6:
   (computed directly -- MONAI has no built-in metric for it) alongside the
   existing Dice/HD95. All four are opt-in flags on `MetricsConfig`, defaulting
   to `False`, so no existing config or report format changes.
-- [x] Dependency lockfile: `requirements-lock.txt`, generated via
+- [x] Dependency lockfile: `locks/requirements-lock.txt`, generated via
   `uv pip compile pyproject.toml --extra dev --universal --python-version 3.11`.
   `ci.yml`/`security.yml` install from it instead of resolving fresh against
   `pyproject.toml`'s lower bounds every run. Regeneration is manual (see
-  `docs/coding_standards.md`) -- Dependabot doesn't update it automatically yet.
+  `docs/coding_standards.md`). Originally lived at the repo root; moved
+  under `locks/` after Dependabot auto-discovered it as a manageable
+  requirements file and flooded the repo with failing PRs bumping
+  individual transitive/CUDA (`nvidia-*`) pins one at a time (see
+  `docs/coding_standards.md`, "Lockfile", for the full story).
 - [x] `mypy tests` in CI, alongside `mypy src`. Fixed real pydicom UID-typing
   bugs in `tests/conftest.py` this surfaced (a variable reassignment that
   widened a `UID` to plain `str`, which also masked a latent bug where

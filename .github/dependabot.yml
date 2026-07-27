@@ -5,6 +5,12 @@ updates:
   # docs/architecture.md, "Repository strategy").
   - package-ecosystem: "pip"
     directory: "/"
+    # Non-recursive: only scans "/" itself, not subdirectories. This is why
+    # locks/requirements-lock.txt lives under locks/ rather than the repo
+    # root -- Dependabot auto-discovers any requirements*.txt-shaped file at
+    # the scanned directory and manages it independently, which caused a
+    # flood of failing PRs bumping single transitive/CUDA pins inside the
+    # lockfile before the move (see docs/coding_standards.md, "Lockfile").
     schedule:
       interval: "weekly"
       day: "monday"
