@@ -254,8 +254,13 @@ Approved scope, three deliverables:
   denoising), showing the ecosystem extends beyond the reference pipeline.
   Uses `miai_diffusion`'s package API directly rather than a pipeline YAML
   config, since this stage is meant to be used standalone.
-- [ ] Updated `examples/README.md` describing each example and how to run
+- [x] Updated `examples/README.md` describing each example and how to run
   it, replacing the current stub.
+
+**Phase 7 is complete.** All 14 packages in `docs/architecture.md`'s
+ecosystem diagram are now implemented -- none remain marked `[planned]`.
+PyPI packaging/publishing remains explicitly paused (see "Project
+infrastructure improvements" above).
 
 ## Working principle
 

@@ -9,18 +9,18 @@ medical imaging workflows. Rather than replacing existing libraries such as
 software architecture focused on research reproducibility, software
 engineering best practices, and clinical applicability.
 
-> **Status:** all planned Phase 0-5 packages implemented, plus two
-> Phase 6 packages --
+> **Status:** all 14 planned packages implemented --
 > `miai-core`, `miai-dicom`, `miai-pipeline`, `miai-transforms`,
 > `miai-datasets`, `miai-segmentation`, `miai-evaluation`,
 > `miai-registration`, `miai-diffusion`, `miai-foundation-models`,
-> `miai-deploy`, `miai-reconstruction`, and `miai-visualization`.
-> The full clinical workflow (DICOM -> NIfTI -> Preprocessing ->
-> [Registration] -> Dataset -> Training -> Inference -> Evaluation)
-> runs end to end, plus optional DDPM-based volume denoising,
-> pretrained-model embedding extraction, portable model export
-> (TorchScript/ONNX), MRI k-space reconstruction, and plotting
+> `miai-deploy`, `miai-reconstruction`, `miai-visualization`, and
+> `miai-examples`. The full clinical workflow (DICOM -> NIfTI ->
+> Preprocessing -> [Registration] -> Dataset -> Training -> Inference
+> -> Evaluation) runs end to end, plus optional DDPM-based volume
+> denoising, pretrained-model embedding extraction, portable model
+> export (TorchScript/ONNX), MRI k-space reconstruction, and plotting
 > tools for volumes/comparisons/curves/metrics/embeddings. See
+> [examples/](examples/) for runnable end-to-end scripts and
 > [docs/roadmap.md](docs/roadmap.md) for what's next.
 
 ## Why MIAI?
@@ -61,7 +61,7 @@ MIAI
 ├── miai-evaluation         # metrics and evaluation                            [done]
 ├── miai-visualization      # visualization tooling                             [done]
 ├── miai-deploy             # clinical deployment                               [done]
-└── miai-examples           # end-to-end examples                               [planned]
+└── miai-examples           # end-to-end examples                               [done]
 ```
 
 All packages above live in this single monorepo, each under its own
