@@ -45,9 +45,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   (`run_denoising`), reporting the MSE-to-clean before and after. Uses
   `miai_diffusion`'s package API directly (not a pipeline YAML config,
   unlike `segmentation_pipeline.py`), since diffusion training/denoising
-  are optional stages meant to be used standalone. Third and last of the
-  planned `miai-examples` deliverables (see `docs/roadmap.md`); only the
-  `examples/README.md` rewrite remains.
+  are optional stages meant to be used standalone.
+- Rewrote `examples/README.md`, replacing the "not yet built" stub with a
+  description of all three examples and how to run each. **This completes
+  `miai-examples`** -- the last package in `docs/architecture.md`'s
+  ecosystem diagram marked `[planned]`. Updated the ecosystem
+  diagrams/status blurb in `README.md` and `docs/architecture.md`
+  accordingly: all 14 planned MIAI packages are now implemented. PyPI
+  packaging/publishing remains explicitly paused.
 
 ### Fixed
 

@@ -17,7 +17,7 @@ MIAI
 ├── miai-evaluation         # metrics and evaluation harnesses                                 [done]
 ├── miai-visualization      # visualization tooling                                            [done]
 ├── miai-deploy             # clinical deployment                                              [done]
-└── miai-examples           # end-to-end example workflows                                     [planned]
+└── miai-examples           # end-to-end example workflows                                     [done]
 ```
 
 Each package is designed to be usable independently and to depend only on
