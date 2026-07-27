@@ -48,22 +48,34 @@ introducing a new dependency that duplicates existing functionality.
 
 `pyproject.toml` only sets lower bounds (`torch>=2.2`, etc.) -- it defines
 what MIAI is compatible with, not what CI actually installs.
-`requirements-lock.txt` pins every dependency, direct and transitive, to an
-exact version, and is what `ci.yml`/`security.yml` install from
-(`pip install -r requirements-lock.txt`, then `pip install -e . --no-deps`
-for the package itself), so every run installs identical versions instead
-of whatever the resolver would pick that day.
+`locks/requirements-lock.txt` pins every dependency, direct and transitive,
+to an exact version, and is what `ci.yml`/`security.yml` install from
+(`pip install -r locks/requirements-lock.txt`, then `pip install -e .
+--no-deps` for the package itself), so every run installs identical
+versions instead of whatever the resolver would pick that day.
 
 Regenerate it after changing `pyproject.toml`'s dependencies (adding,
 removing, or re-bounding a package):
 
 ```bash
-uv pip compile pyproject.toml --extra dev --universal --python-version 3.11 -o requirements-lock.txt
+uv pip compile pyproject.toml --extra dev --universal --python-version 3.11 -o locks/requirements-lock.txt
 ```
 
 `--universal` resolves for every supported OS/architecture (embedding
 environment markers where versions differ, e.g. `scipy` between Python 3.11
 and 3.12) rather than just the resolving machine's own platform.
-Dependabot still opens PRs against `pyproject.toml`'s bounds as before; the
-lockfile is not currently auto-updated by Dependabot and needs a manual
-regeneration + PR when a bound changes.
+
+It lives under `locks/` rather than the repo root deliberately: Dependabot's
+`pip` ecosystem auto-discovers any `requirements*.txt`-shaped file in the
+directory it's pointed at (`directory: "/"` in `.github/dependabot.yml`) and
+treats it as independently manageable, which is not what we want for a
+lockfile meant to be regenerated as a whole. When it briefly lived at the
+repo root, Dependabot opened one PR per outdated *transitive* package inside
+it -- including over a dozen `nvidia-*`/`triton` CUDA packages that PyPI's
+standard linux `torch` wheel pulls in even though this project only ever
+runs on CPU -- and most of those PRs failed CI, since bumping a single
+pinned line breaks the internally consistent resolution the lockfile
+represents. Moving it under `locks/` (outside dependabot.yml's non-recursive
+scan directory) stops Dependabot from discovering it at all; it still
+opens PRs against `pyproject.toml`'s bounds as before, and the lockfile
+still needs a manual regeneration + PR when a bound changes.

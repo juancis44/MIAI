@@ -38,6 +38,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   from 0.34/0.34 to 0.3/0.3, to pair with `segmentation_pipeline.py`'s 10
   synthetic cases for a cleaner 4/3/3 train/val/test split.
 
+### Fixed
+
+- Moved the dependency lockfile from `requirements-lock.txt` (repo root) to
+  `locks/requirements-lock.txt`. Dependabot's `pip` ecosystem auto-discovered
+  the root-level file as an independently manageable requirements file and
+  opened one PR per outdated *transitive* package inside it -- including
+  over a dozen `nvidia-*`/`triton` CUDA packages that PyPI's standard linux
+  `torch` wheel pulls in even though CI only ever runs on CPU. Most of those
+  PRs failed CI, since bumping a single pinned line breaks the internally
+  consistent resolution the lockfile represents. `directory: "/"` in
+  `.github/dependabot.yml` is non-recursive, so moving the file under
+  `locks/` removes it from Dependabot's scan entirely; `ci.yml`,
+  `security.yml`, and `docs/coding_standards.md` updated for the new path.
+
 ## [0.13.0] - 2026-07-24
 
 ### Added
