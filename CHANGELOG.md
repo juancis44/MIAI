@@ -37,6 +37,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Adjusted `examples/configs/pipeline.yaml`'s `val_fraction`/`test_fraction`
   from 0.34/0.34 to 0.3/0.3, to pair with `segmentation_pipeline.py`'s 10
   synthetic cases for a cleaner 4/3/3 train/val/test split.
+- `examples/diffusion_denoising.py`: a runnable script demonstrating an
+  optional MIAI stage outside the main segmentation workflow -- trains a
+  compact 3D DDPM on synthetic volumes, then simulates a "real noisy scan"
+  by corrupting a known-clean volume with real forward-diffusion noise
+  (`NoiseSchedule.q_sample`) and denoises it via reverse diffusion
+  (`run_denoising`), reporting the MSE-to-clean before and after. Uses
+  `miai_diffusion`'s package API directly (not a pipeline YAML config,
+  unlike `segmentation_pipeline.py`), since diffusion training/denoising
+  are optional stages meant to be used standalone. Third and last of the
+  planned `miai-examples` deliverables (see `docs/roadmap.md`); only the
+  `examples/README.md` rewrite remains.
 
 ### Fixed
 

@@ -249,9 +249,11 @@ Approved scope, three deliverables:
   end to end via `Pipeline.from_config`. 10 synthetic cases, named
   `case_000`.. so DICOM series discovery order matches generated label
   order without inspecting UIDs.
-- [ ] `examples/diffusion_denoising.py`: a runnable script demonstrating an
+- [x] `examples/diffusion_denoising.py`: a runnable script demonstrating an
   optional stage outside the main segmentation workflow (DDPM training +
   denoising), showing the ecosystem extends beyond the reference pipeline.
+  Uses `miai_diffusion`'s package API directly rather than a pipeline YAML
+  config, since this stage is meant to be used standalone.
 - [ ] Updated `examples/README.md` describing each example and how to run
   it, replacing the current stub.
 
