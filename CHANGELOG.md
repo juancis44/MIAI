@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-08-05
+
 ### Added
 
 - `examples/configs/pipeline.yaml`: a real, runnable pipeline config for the
