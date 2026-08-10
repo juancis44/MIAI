@@ -87,7 +87,7 @@ kiwisolver==1.5.0
     # via matplotlib
 lazy-loader==0.5
     # via scikit-image
-librt==0.13.0 ; platform_python_implementation != 'PyPy'
+librt==0.14.0 ; platform_python_implementation != 'PyPy'
     # via mypy
 markdown-it-py==4.2.0
     # via rich
