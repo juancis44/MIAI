@@ -292,7 +292,7 @@ torch==2.13.0
     # via
     #   miai-core (pyproject.toml)
     #   monai
-tqdm==4.69.0
+tqdm==4.70.0
     # via
     #   huggingface-hub
     #   transformers
