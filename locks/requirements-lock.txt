@@ -184,7 +184,7 @@ nvidia-nvtx==13.0.85 ; (platform_machine == 'aarch64' and sys_platform == 'linux
     # via cuda-toolkit
 onnx==1.22.0
     # via miai-core (pyproject.toml)
-packaging==26.2
+packaging==26.3
     # via
     #   black
     #   huggingface-hub
