@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Tests
+
+- Added `test_end_to_end_reconstruction_feature_extraction_visualization`
+  to `tests/test_pipeline_end_to_end.py`, chaining
+  `dicom_to_nifti -> preprocessing -> {reconstruction, feature_extraction,
+  visualization}` as one config-driven `Pipeline`. Previously these three
+  optional stages were only covered in isolation, each starting from a
+  hand-built context with `preprocessed_paths` injected directly by the
+  test; this confirms all three consume the real output of a preceding
+  `PreprocessingStage` instead.
+
 ## [0.14.0] - 2026-08-05
 
 ### Added

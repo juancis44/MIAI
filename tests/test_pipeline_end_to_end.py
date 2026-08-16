@@ -13,11 +13,14 @@ injecting them, since a real pipeline run never does that either.
 """
 
 from pathlib import Path
+from typing import Any
 
+import numpy.typing as npt
 import pytest
 import torch
 
 from conftest import make_dicom_series, make_offset_cube_volume, make_synthetic_volume_pair
+from miai_foundation_models.extractor import FeatureExtractor
 from miai_pipeline import Pipeline, PipelineConfig, PipelineContext
 
 _UNET_PARAMS = {"channels": [4, 8], "strides": [2], "num_res_units": 0}
@@ -352,3 +355,97 @@ def test_end_to_end_training_and_export(tmp_path: Path) -> None:
     bundle_path = Path(result.require("deploy_bundle_path"))
     assert (bundle_path / "model.pt").exists()
     assert (bundle_path / "metadata.yaml").exists()
+
+
+@pytest.mark.slow
+def test_end_to_end_reconstruction_feature_extraction_visualization(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """DICOM -> NIfTI -> Preprocessing -> {reconstruction, feature_extraction,
+    visualization}, chained as one config-driven Pipeline instead of each
+    optional stage being exercised in isolation from a hand-built context
+    (as test_pipeline_reconstruction_stage.py, test_pipeline_feature_extraction_stage.py,
+    and test_pipeline_visualization_stage.py do). All three read the real
+    ``preprocessed_paths`` written by the real PreprocessingStage that
+    precedes them, exactly as a real pipeline run would.
+
+    Monkeypatches FeatureExtractor.from_pretrained for the same reason
+    test_pipeline_feature_extraction_stage.py does: keeps this test
+    CI-hermetic regardless of network access, without weakening the
+    context-wiring assertion it's checking.
+    """
+    embedding_dim = 4
+
+    class _FakeExtractor:
+        def extract_volume_embedding(self, volume: npt.NDArray[Any]) -> torch.Tensor:
+            return torch.zeros(embedding_dim)
+
+    monkeypatch.setattr(
+        FeatureExtractor,
+        "from_pretrained",
+        classmethod(lambda cls, config: _FakeExtractor()),
+    )
+
+    dicom_dir = tmp_path / "dicom"
+    _make_two_series(dicom_dir)
+
+    config = PipelineConfig.model_validate(
+        {
+            "stages": [
+                {"type": "dicom_to_nifti", "params": {"output_dir": str(tmp_path / "nifti")}},
+                {
+                    "type": "preprocessing",
+                    "params": {
+                        "output_dir": str(tmp_path / "preprocessed"),
+                        "target_spacing": [1.0, 1.0, 1.0],
+                        "normalization": "zscore",
+                    },
+                },
+                {
+                    "type": "reconstruction",
+                    "params": {
+                        "output_dir": str(tmp_path / "reconstructed"),
+                        "undersampling": {"acceleration": 4.0},
+                    },
+                },
+                {
+                    "type": "feature_extraction",
+                    "params": {"output_dir": str(tmp_path / "embeddings")},
+                },
+                {
+                    "type": "visualization",
+                    "params": {
+                        "output_dir": str(tmp_path / "qc"),
+                        "montage": {"num_slices": 2},
+                    },
+                },
+            ]
+        }
+    )
+
+    pipeline = Pipeline.from_config(config)
+
+    ctx = PipelineContext()
+    ctx.set("dicom_dir", dicom_dir)
+    result = pipeline.run(ctx)
+
+    # Every optional stage below consumed the real preprocessed_paths
+    # written by PreprocessingStage -- confirm each wrote its own output
+    # for both cases, rather than something the test injected itself.
+    preprocessed_paths = result.require("preprocessed_paths")
+    assert len(preprocessed_paths) == 2
+
+    reconstructed_paths = result.require("reconstructed_paths")
+    assert len(reconstructed_paths) == 2
+    for p in reconstructed_paths:
+        assert Path(p).exists()
+
+    embedding_paths = result.require("embedding_paths")
+    assert len(embedding_paths) == 2
+    for p in embedding_paths:
+        assert Path(p).exists()
+
+    qc_paths = result.require("qc_visualization_paths")
+    assert len(qc_paths) == 2
+    for p in qc_paths:
+        assert Path(p).exists()
