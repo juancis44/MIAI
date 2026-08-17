@@ -219,8 +219,11 @@ state review at the end of Phase 6:
   automatically by the next stage, which no test had exercised before (every
   prior stage test built its context by hand rather than from a preceding
   stage's real output). `feature_extraction`, `reconstruction`, and
-  `visualization` remain covered only in isolation, not chained -- a possible
-  future addition, not done now.
+  `visualization` are now also chained together in
+  `test_end_to_end_reconstruction_feature_extraction_visualization`
+  (`dicom_to_nifti -> preprocessing -> {reconstruction, feature_extraction,
+  visualization}`), confirming all three consume a real preceding
+  `PreprocessingStage`'s output rather than a hand-built context.
 - [x] Training tests now verify real learning, not just that training runs:
   `test_train_model_actually_learns_to_segment`
   (`tests/test_segmentation_train.py`) and
