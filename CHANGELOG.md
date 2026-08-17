@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-08-17
+
 ### Added
 
 - `pydocstyle` added to CI, deepening `interrogate`'s presence-only
