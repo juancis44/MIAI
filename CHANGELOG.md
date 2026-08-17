@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Refreshed `locks/requirements-lock.txt` via 7 of the 10 open Dependabot
+  `pip` PRs: `ast-serialize`, `filelock`, `fsspec`, `hf-xet`, `librt`,
+  `packaging`, `tqdm` (each landed at whatever their latest PyPI release was
+  at regeneration time, which for `ast-serialize`/`filelock`/`librt` was
+  newer than the specific version Dependabot's PR had originally proposed).
+  The other 3 open PRs (`nvidia-cuda-cupti-13.3.75`, `nvidia-cufft-12.3.0.29`,
+  `nvidia-nccl-cu13-2.30.7`) were intentionally **not** merged: torch 2.13.0
+  pins these exact `nvidia-cu13` versions as hard `==` dependencies, so
+  bumping them independently is not resolvable without also bumping torch.
+  Those 3 PRs should be closed rather than merged.
+
 ## [0.15.0] - 2026-08-17
 
 ### Added
