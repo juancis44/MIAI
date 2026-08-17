@@ -63,9 +63,11 @@ class InferenceStage(PipelineStage):
     config_cls = InferenceStageConfig
 
     def __init__(self, config: InferenceStageConfig) -> None:
+        """Store this stage's configuration."""
         self.config = config
 
     def run(self, context: PipelineContext) -> PipelineContext:
+        """Run the stage; see the class docstring for its read/write contract."""
         manifest = context.require("manifest")
         test_entries = manifest.get("test", [])
         if not test_entries:

@@ -43,9 +43,11 @@ class LoadImageSitkd(MapTransform):
     """
 
     def __init__(self, keys: KeysCollection, allow_missing_keys: bool = False) -> None:
+        """Store which dict keys this transform loads images for."""
         super().__init__(keys, allow_missing_keys)
 
     def __call__(self, data: Mapping[Hashable, Any]) -> dict[Hashable, Any]:
+        """Load each configured key's image path into an array in-place."""
         d = dict(data)
         for key in self.key_iterator(d):
             path = str(d[key])

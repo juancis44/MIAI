@@ -38,6 +38,7 @@ class DicomSeries:
     file_paths: tuple[Path, ...]
 
     def __len__(self) -> int:
+        """Return the number of files in this series."""
         return len(self.file_paths)
 
 

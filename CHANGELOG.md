@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `pydocstyle` added to CI, deepening `interrogate`'s presence-only
+  docstring check with a completeness check: well-formed summary lines
+  (blank line between summary and extended description, summary ending
+  in punctuation), no missing docstrings on magic methods (`__len__`,
+  `__contains__`, etc.), and consistent Google-convention formatting.
+  Configured under `[tool.pydocstyle]` in `pyproject.toml`, scoped to
+  `src/` only (mirrors `interrogate`'s `tests`/`examples`/`scripts`
+  exclusion). Fixed the ~40 real violations this surfaced across
+  `miai_pipeline` (every concrete stage's `__init__`/`run` was
+  undocumented -- the class docstring's Reads/Writes contract doesn't
+  substitute for pydocstyle's per-method requirement), `miai_dicom`,
+  `miai_core`, `miai_diffusion`, `miai_foundation_models`, and
+  `miai_transforms`.
+
 ### Tests
 
 - Added `test_end_to_end_reconstruction_feature_extraction_visualization`

@@ -46,6 +46,7 @@ dev = [
     "mypy>=1.10",
     "pre-commit>=3.7",
     "interrogate>=1.7",
+    "pydocstyle>=6.3",
     # Not a MIAI runtime dependency -- pinned here to patch
     # PYSEC-2026-3447 in the setuptools version pip installs by
     # default into the dev/CI environment (surfaced by the pip-audit
@@ -212,3 +213,12 @@ style = "google"
 fail-under = 85
 exclude = ["tests", "examples", "scripts"]
 verbose = 1
+
+[tool.pydocstyle]
+# Deepens interrogate's presence-only check (above) to verify docstring
+# *completeness* -- e.g. that a documented function's docstring is
+# well-formed, not just that one exists. Convention "google" matches
+# docs/coding_standards.md and interrogate's style="google". Scoped to
+# src/ only, mirroring interrogate's tests/examples/scripts exclusion.
+convention = "google"
+match_dir = "^(?!tests|examples|scripts|locks|docs)[^.].*"

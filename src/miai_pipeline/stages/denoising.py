@@ -61,9 +61,11 @@ class DenoisingStage(PipelineStage):
     config_cls = DenoisingStageConfig
 
     def __init__(self, config: DenoisingStageConfig) -> None:
+        """Store this stage's configuration."""
         self.config = config
 
     def run(self, context: PipelineContext) -> PipelineContext:
+        """Run the stage; see the class docstring for its read/write contract."""
         source_paths = context.require(self.config.context_key)
         if not source_paths:
             raise StageError(f"'{self.config.context_key}' is empty; nothing to denoise.")

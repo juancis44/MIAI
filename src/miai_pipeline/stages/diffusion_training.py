@@ -58,9 +58,11 @@ class DiffusionTrainingStage(PipelineStage):
     config_cls = DiffusionTrainingStageConfig
 
     def __init__(self, config: DiffusionTrainingStageConfig) -> None:
+        """Store this stage's configuration."""
         self.config = config
 
     def run(self, context: PipelineContext) -> PipelineContext:
+        """Run the stage; see the class docstring for its read/write contract."""
         manifest = context.require("manifest")
         train_entries = manifest.get("train", [])
         if not train_entries:

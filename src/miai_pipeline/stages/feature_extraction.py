@@ -45,9 +45,11 @@ class FeatureExtractionStage(PipelineStage):
     config_cls = FeatureExtractionStageConfig
 
     def __init__(self, config: FeatureExtractionStageConfig) -> None:
+        """Store this stage's configuration."""
         self.config = config
 
     def run(self, context: PipelineContext) -> PipelineContext:
+        """Run the stage; see the class docstring for its read/write contract."""
         source_paths = context.require(self.config.context_key)
         if not source_paths:
             raise StageError(f"'{self.config.context_key}' is empty; nothing to embed.")

@@ -1,5 +1,4 @@
-"""Extracting a consistent, JSON-serializable metadata dictionary from a
-DICOM dataset.
+"""Extract a consistent, JSON-serializable metadata dictionary from a DICOM dataset.
 
 Downstream packages (dataset indexing, series loading, clinical pipelines)
 should read metadata through :func:`extract_metadata` rather than

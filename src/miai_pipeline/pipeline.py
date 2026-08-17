@@ -24,6 +24,7 @@ class Pipeline:
     """
 
     def __init__(self, stages: Sequence[PipelineStage]) -> None:
+        """Store the ordered list of stages this pipeline will run."""
         self.stages = list(stages)
 
     def run(self, context: PipelineContext | None = None) -> PipelineContext:
@@ -44,8 +45,7 @@ class Pipeline:
 
     @classmethod
     def from_config(cls, config: PipelineConfig) -> Pipeline:
-        """Build a :class:`Pipeline` from a validated
-        :class:`~miai_pipeline.config.PipelineConfig`.
+        """Build a Pipeline from a validated PipelineConfig.
 
         Args:
             config: The pipeline configuration, typically loaded via

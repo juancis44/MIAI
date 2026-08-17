@@ -79,9 +79,11 @@ class RegistrationStage(PipelineStage):
     config_cls = RegistrationStageConfig
 
     def __init__(self, config: RegistrationStageConfig) -> None:
+        """Store this stage's configuration."""
         self.config = config
 
     def run(self, context: PipelineContext) -> PipelineContext:
+        """Run the stage; see the class docstring for its read/write contract."""
         moving_paths: list[Path] = context.require(self.config.context_key)
         if not moving_paths:
             raise StageError(f"'{self.config.context_key}' is empty; nothing to register.")

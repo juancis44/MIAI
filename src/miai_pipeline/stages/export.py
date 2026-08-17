@@ -54,9 +54,11 @@ class ExportStage(PipelineStage):
     config_cls = ExportStageConfig
 
     def __init__(self, config: ExportStageConfig) -> None:
+        """Store this stage's configuration."""
         self.config = config
 
     def run(self, context: PipelineContext) -> PipelineContext:
+        """Run the stage; see the class docstring for its read/write contract."""
         checkpoint_path = self.config.checkpoint_path or context.require("model_checkpoint_path")
 
         model = build_unet(self.config.unet)

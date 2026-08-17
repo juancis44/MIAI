@@ -65,9 +65,11 @@ class DatasetStage(PipelineStage):
     config_cls = DatasetConfig
 
     def __init__(self, config: DatasetConfig) -> None:
+        """Store this stage's configuration."""
         self.config = config
 
     def run(self, context: PipelineContext) -> PipelineContext:
+        """Run the stage; see the class docstring for its read/write contract."""
         if self.config.val_fraction + self.config.test_fraction >= 1.0:
             raise ConfigError(
                 "val_fraction + test_fraction must be less than 1.0 so at least "

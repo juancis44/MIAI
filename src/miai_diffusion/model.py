@@ -96,6 +96,7 @@ class DiffusionUNet(nn.Module):
     """
 
     def __init__(self, config: DiffusionUNetConfig) -> None:
+        """Build the U-Net's down/mid/up blocks from ``config``."""
         super().__init__()
         self.config = config
         time_dim = config.time_embedding_dim
@@ -132,6 +133,7 @@ class DiffusionUNet(nn.Module):
         self.out_conv = nn.Conv3d(channels[0], config.in_channels, kernel_size=3, padding=1)
 
     def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """Predict the noise added to ``x`` at timestep ``t``."""
         t_emb = self.time_embedding(t)
 
         h = self.in_conv(x)

@@ -205,9 +205,15 @@ state review at the end of Phase 6:
 - [x] Docstring-completeness linter: `interrogate` in CI (`interrogate src`),
   configured via `[tool.interrogate]` in `pyproject.toml`
   (`style = "google"`, `fail-under = 85`, current actual 87.1%). Checks
-  docstring *presence* per `docs/api_design.md`'s Documentation contract, not
-  full Args/Returns/Raises completeness -- that would need `pydocstyle` and a
-  larger cleanup pass, not done now.
+  docstring *presence* per `docs/api_design.md`'s Documentation contract.
+- [x] Deepened the docstring linter beyond presence to completeness:
+  `pydocstyle` added to CI, configured via `[tool.pydocstyle]` in
+  `pyproject.toml` (`convention = "google"`, scoped to `src/` like
+  `interrogate`). Fixed the ~40 real violations it surfaced -- mostly
+  every concrete pipeline stage's `__init__`/`run` methods lacking their
+  own docstring (the class-level Reads/Writes contract doesn't substitute
+  for a per-method one under pydocstyle), plus malformed module/class
+  docstring summaries and undocumented magic methods elsewhere.
 - [x] Deepened `tests/test_pipeline_end_to_end.py`: previously only chained
   `dicom_to_nifti -> preprocessing -> dataset` (3 of ~13 stages) via a real
   `Pipeline.from_config` run. Added: the same data-prep chain extended through

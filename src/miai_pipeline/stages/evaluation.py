@@ -52,9 +52,11 @@ class EvaluationStage(PipelineStage):
     config_cls = EvaluationStageConfig
 
     def __init__(self, config: EvaluationStageConfig) -> None:
+        """Store this stage's configuration."""
         self.config = config
 
     def run(self, context: PipelineContext) -> PipelineContext:
+        """Run the stage; see the class docstring for its read/write contract."""
         prediction_paths = context.require("prediction_paths")
         manifest = context.require("manifest")
         test_entries = manifest.get("test", [])

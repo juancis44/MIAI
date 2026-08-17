@@ -50,5 +50,10 @@ jobs:
       - name: Docstring completeness (interrogate)
         run: interrogate src
 
+      - name: Docstring style (pydocstyle)
+        # Deepens interrogate's presence-only check with completeness:
+        # summary/description formatting, Args/Returns sections, etc.
+        run: pydocstyle
+
       - name: Run tests
         run: pytest

@@ -1,5 +1,6 @@
-"""Concrete pipeline stages, and the registry mapping a config file's
-``type`` string to a stage class.
+"""Concrete pipeline stages and the config-file stage-type registry.
+
+Maps a config file's ``type`` string to a stage class.
 """
 
 from __future__ import annotations

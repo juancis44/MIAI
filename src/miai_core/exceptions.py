@@ -40,6 +40,8 @@ class ValidationError(MIAIError):
 
 
 class NotFoundError(MIAIError):
-    """Raised when a required resource (file, key, registered component) is
-    missing.
+    """Raised when a required resource is missing.
+
+    Covers files, keys, and registered components (e.g. an unknown
+    pipeline stage type).
     """

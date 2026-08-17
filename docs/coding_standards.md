@@ -16,6 +16,14 @@
 - Docstrings follow the
   [Google style](https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings)
   and are required on all public modules, classes, and functions.
+  [interrogate](https://interrogate.readthedocs.io/) enforces *presence*
+  (`interrogate src`, 85% minimum, `tests`/`examples`/`scripts` excluded);
+  [pydocstyle](https://www.pydocstyle.org/) enforces *completeness* --
+  well-formed summary lines, proper Args/Returns sections, no missing
+  docstrings on magic methods -- for the Google convention (`pydocstyle`,
+  same exclusions, configured under `[tool.pydocstyle]` in
+  `pyproject.toml`). Both run in CI; neither checks the other's concern,
+  so both are needed.
 
 ## Testing
 

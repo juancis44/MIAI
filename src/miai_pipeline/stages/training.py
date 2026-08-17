@@ -63,9 +63,11 @@ class TrainingStage(PipelineStage):
     config_cls = TrainingStageConfig
 
     def __init__(self, config: TrainingStageConfig) -> None:
+        """Store this stage's configuration."""
         self.config = config
 
     def run(self, context: PipelineContext) -> PipelineContext:
+        """Run the stage; see the class docstring for its read/write contract."""
         manifest = context.require("manifest")
         train_entries = manifest.get("train", [])
         val_entries = manifest.get("val", [])

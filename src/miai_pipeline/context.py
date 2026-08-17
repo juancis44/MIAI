@@ -57,6 +57,7 @@ class PipelineContext:
         return self._data[key]
 
     def __contains__(self, key: object) -> bool:
+        """Return whether ``key`` has been set on this context."""
         return key in self._data
 
     def keys(self) -> KeysView[str]:

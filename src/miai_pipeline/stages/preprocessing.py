@@ -57,9 +57,11 @@ class PreprocessingStage(PipelineStage):
     config_cls = PreprocessingConfig
 
     def __init__(self, config: PreprocessingConfig) -> None:
+        """Store this stage's configuration."""
         self.config = config
 
     def run(self, context: PipelineContext) -> PipelineContext:
+        """Run the stage; see the class docstring for its read/write contract."""
         nifti_paths: list[Path] = context.require("nifti_paths")
         output_dir = ensure_dir(self.config.output_dir)
 

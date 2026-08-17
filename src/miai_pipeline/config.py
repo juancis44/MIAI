@@ -1,5 +1,4 @@
-"""Configuration schema for building a :class:`~miai_pipeline.pipeline.Pipeline`
-from a YAML file.
+"""Configuration schema for building a Pipeline from a YAML file.
 
 A pipeline is defined as an ordered list of stages, each identified by a
 ``type`` string that must be registered in

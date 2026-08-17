@@ -14,6 +14,7 @@ class StageError(PipelineError):
 
 
 class UnknownStageError(PipelineError):
-    """Raised when a pipeline config references a stage type that is not
-    registered in :data:`miai_pipeline.stages.STAGE_REGISTRY`.
+    """Raised when a pipeline config references an unregistered stage type.
+
+    See :data:`miai_pipeline.stages.STAGE_REGISTRY` for valid values.
     """

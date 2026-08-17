@@ -73,8 +73,7 @@ class _ImageProcessor(Protocol):
 
 
 class EmbeddingExtractor(Protocol):
-    """The subset of :class:`FeatureExtractor`'s interface that
-    :func:`~miai_foundation_models.run.extract_embeddings_for_paths` needs.
+    """The subset of FeatureExtractor's interface that callers need.
 
     Declared as a :class:`typing.Protocol` (same rationale as
     :class:`_ImageProcessor` above) so callers -- and tests -- can pass
@@ -82,7 +81,9 @@ class EmbeddingExtractor(Protocol):
     real :class:`FeatureExtractor`, without needing to subclass it.
     """
 
-    def extract_volume_embedding(self, volume: npt.NDArray[Any]) -> torch.Tensor: ...
+    def extract_volume_embedding(self, volume: npt.NDArray[Any]) -> torch.Tensor:
+        """Return a single embedding vector for a 3D volume array."""
+        ...
 
 
 class FeatureExtractor:
@@ -99,6 +100,7 @@ class FeatureExtractor:
         processor: _ImageProcessor,
         config: FeatureExtractorConfig | None = None,
     ) -> None:
+        """Wrap an already-loaded model/processor pair."""
         self.config = config or FeatureExtractorConfig()
         self.device = torch.device(self.config.device)
         self.model = model.to(self.device)
