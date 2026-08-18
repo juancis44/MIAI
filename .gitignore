@@ -50,3 +50,7 @@ examples/output/
 
 # graphify (regenerate with `graphify update .`)
 graphify-out/
+
+# Claude Code project instructions -- kept local, not part of the
+# published repo (see CHANGELOG.md's Unreleased entry for context)
+CLAUDE.md

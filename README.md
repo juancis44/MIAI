@@ -23,6 +23,15 @@ engineering best practices, and clinical applicability.
 > [examples/](examples/) for runnable end-to-end scripts and
 > [docs/roadmap.md](docs/roadmap.md) for what's next.
 
+> **Disclaimer:** MIAI is research and engineering tooling, not a medical
+> device. It has not been evaluated or cleared by any regulatory body (FDA,
+> CE marking, or equivalent), and no model, pipeline, or output produced
+> with it should be used for clinical diagnosis, treatment decisions, or any
+> other direct patient-care purpose without independent clinical validation
+> and the appropriate regulatory approval. Use it for research, education,
+> and building/prototyping workflows -- not as a substitute for professional
+> medical judgment.
+
 ## Why MIAI?
 
 Modern medical imaging research requires combining many disconnected tools:

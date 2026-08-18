@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `SECURITY.md`: vulnerability reporting policy ahead of making the repo
+  public -- supported-versions table (only the latest `0.x.y` release,
+  matching MIAI's pre-1.0 versioning), and instructions to use GitHub's
+  private vulnerability reporting instead of a public issue.
+- `CODE_OF_CONDUCT.md`: Contributor Covenant v2.1, GitHub's standard
+  template, filled in for this repository.
+- A non-clinical-use disclaimer in `README.md`'s status callout: MIAI is
+  research/engineering tooling, not a regulatory-cleared medical device,
+  and should not drive clinical decisions without independent validation.
 - `miai_segmentation.three_d`: a new subpackage organizing MIAI's
   segmentation package by imaging modality (3D now, 2D and 2.5D planned
   -- see `docs/roadmap.md`'s Phase 8). Moved the existing UNet reference
@@ -18,6 +27,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `build_model` as a single dispatch point so callers pick an
   architecture via one `kind: "unet" | "segresnet"` field instead of
   calling a per-architecture builder directly.
+
+### Removed
+
+- `CLAUDE.md` (Claude Code project instructions): dropped from the
+  published repo and added to `.gitignore` ahead of making this repo
+  public. Kept locally only; contained no secrets, just AI-assistant
+  tooling instructions the maintainer didn't want in the public repo.
 
 ### Changed
 
