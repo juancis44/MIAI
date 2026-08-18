@@ -104,6 +104,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `docs/compatibility_policy.md` to the documentation table, and a
   pointer to `docs/user_guide.md` ahead of the Installation section's
   quick-example code blocks.
+- `pyproject.toml`'s PyPI package name: `miai-core` -> `miai`. The name
+  `miai-core` would have collided in spirit with the `miai_core`
+  utilities sub-package while actually installing all 14 `miai_*`
+  packages (a monorepo/single-`pyproject.toml` side effect); `miai`
+  avoids that confusion. `.github/workflows/publish.yml` and
+  `docs/release_process.md` updated to match; no release has been
+  published under either name yet, so this is not a breaking rename.
 
 ## [0.15.0] - 2026-08-17
 

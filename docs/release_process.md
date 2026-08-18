@@ -12,32 +12,25 @@ performed**: no MIAI release has been published to PyPI as of this
 writing. `README.md`'s "Installation" section reflects that; update it
 once the first release actually ships.
 
-## An open decision before the first publish: the package name
+## Package name: `miai` (decided 2026-08-18)
 
-`pyproject.toml` currently names the single PyPI package `miai-core`
-(`name = "miai-core"`), but a built wheel bundles **all 14** import
-packages (`miai_core`, `miai_dicom`, `miai_pipeline`, ...
-`miai_visualization`) -- confirmed locally: `python -m build` then
-inspecting the wheel shows every `miai_*` top-level package inside one
-`miai_core-<version>-py3-none-any.whl`. This is a side effect of the
-monorepo using a single `pyproject.toml` (see `docs/architecture.md`,
-"Repository strategy") rather than one `pyproject.toml` per package.
+`pyproject.toml` names the single PyPI package `miai` (`name = "miai"`).
+A built wheel bundles **all 14** import packages (`miai_core`,
+`miai_dicom`, `miai_pipeline`, ... `miai_visualization`) -- confirmed
+locally: `python -m build` then inspecting the wheel shows every `miai_*`
+top-level package inside one `miai-<version>-py3-none-any.whl`. This is a
+side effect of the monorepo using a single `pyproject.toml` (see
+`docs/architecture.md`, "Repository strategy") rather than one
+`pyproject.toml` per package, so `pip install miai` installs the entire
+ecosystem -- which is exactly what the name implies.
 
-That means `pip install miai-core` today would install the *entire*
-ecosystem under a name that suggests it's just the core utilities package.
-Both `miai-core` and `miai` are currently unregistered on PyPI (checked
-2026-08-18), so there's room to pick either:
-
-- **Keep `miai-core`** -- no `pyproject.toml` change needed, but the name
-  stays misleading for as long as the monorepo ships as one package.
-- **Rename to `miai`** -- more accurate for what actually gets installed,
-  but changes the `pip install` command in every doc/example, and once
-  published a PyPI name can't be renamed later (only yanked and
-  re-published under a new name, which fragments the version history).
-
-This should be decided **before** the first publish, since it's very hard
-to undo after. Whichever name is chosen, register it as a trusted
-publisher (below) under that exact name.
+(The package was previously going to be named `miai-core` -- the same
+string as the `miai_core` utilities sub-package -- which would have
+misleadingly implied `pip install miai-core` only installed the utilities
+module rather than all 14 packages. `miai` was chosen instead to avoid
+that collision. Both names were confirmed available on PyPI as of
+2026-08-18; `miai` has since been registered as the trusted-publisher
+target, see below.)
 
 ## One-time setup (PyPI project owner only, not automatable from CI)
 
@@ -48,13 +41,13 @@ projects with separate trusted-publisher configuration:
 1. Create an account on [pypi.org](https://pypi.org) and
    [test.pypi.org](https://test.pypi.org) if you don't have one (they're
    independent accounts).
-2. Register a **pending trusted publisher** for the chosen package name
-   (see above) -- PyPI supports this *before* the project exists, so the
-   very first publish doesn't need an API token at all:
+2. Register a **pending trusted publisher** for `miai` -- PyPI supports
+   this *before* the project exists, so the very first publish doesn't
+   need an API token at all:
    - pypi.org: account **Publishing** settings -> "Add a new pending
-     publisher" -> PyPI project name: `miai-core` (or `miai`) -> owner:
-     `juancis44` -> repository name: `MIAI` -> workflow name:
-     `publish.yml` -> environment name: `pypi`.
+     publisher" -> PyPI project name: `miai` -> owner: `juancis44` ->
+     repository name: `MIAI` -> workflow name: `publish.yml` ->
+     environment name: `pypi`.
    - test.pypi.org: same steps, environment name: `testpypi` instead.
 3. In this GitHub repository's **Settings -> Environments**, create two
    environments named exactly `pypi` and `testpypi` (matching step 2 and
@@ -93,7 +86,7 @@ build step itself needs no further changes.
    trigger `.github/workflows/publish.yml` manually (Actions ->
    "Publish to PyPI" -> "Run workflow" -> target: `testpypi`), then verify
    the published version on test.pypi.org: `pip install --index-url
-   https://test.pypi.org/simple/ miai-core==X.Y.Z` in a scratch venv and
+   https://test.pypi.org/simple/ miai==X.Y.Z` in a scratch venv and
    confirm it imports.
 5. **Real release:** create a GitHub Release from the `vX.Y.Z` tag (GitHub
    UI: Releases -> "Draft a new release" -> choose the tag -> "Publish
@@ -101,11 +94,10 @@ build step itself needs no further changes.
    Publishing the Release triggers `publish.yml`'s `publish-pypi` job
    automatically.
 6. Confirm on pypi.org that the new version is live, and that
-   `pip install miai-core==X.Y.Z` works in a scratch environment.
+   `pip install miai==X.Y.Z` works in a scratch environment.
 
 ## What still needs a decision from the maintainer (not done by this doc)
 
-- The package-name decision above.
 - Actually performing the one-time PyPI/TestPyPI trusted-publisher setup
   (requires PyPI account access this repository's CI/tooling doesn't
   have).

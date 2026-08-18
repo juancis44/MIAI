@@ -82,7 +82,8 @@ been split into its own repository yet.
 
 ## Installation
 
-`miai-core` is not yet published to PyPI. Install from source:
+The `miai` distribution is not yet published to PyPI (see
+[docs/release_process.md](docs/release_process.md)). Install from source:
 
 ```bash
 git clone https://github.com/juancis44/MIAI.git
