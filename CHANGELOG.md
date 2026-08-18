@@ -111,6 +111,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   avoids that confusion. `.github/workflows/publish.yml` and
   `docs/release_process.md` updated to match; no release has been
   published under either name yet, so this is not a breaking rename.
+- `pyproject.toml`'s `Development Status` classifier: `2 - Pre-Alpha` ->
+  `4 - Beta`. Reflects that all 14 packages are implemented and tested;
+  not `5 - Production/Stable` since the project is still pre-1.0 (see
+  `docs/compatibility_policy.md`) with no published release yet.
 
 ## [0.15.0] - 2026-08-17
 

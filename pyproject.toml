@@ -14,7 +14,7 @@ authors = [
 ]
 keywords = ["medical imaging", "deep learning", "reproducibility", "MONAI", "DICOM"]
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.11",

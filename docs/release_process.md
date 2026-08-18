@@ -100,8 +100,11 @@ build step itself needs no further changes.
 
 - Actually performing the one-time PyPI/TestPyPI trusted-publisher setup
   (requires PyPI account access this repository's CI/tooling doesn't
-  have).
-- Whether `pyproject.toml`'s `classifiers` should move off
-  `"Development Status :: 2 - Pre-Alpha"` before or at the first publish
-  (commonly bumped to `"4 - Beta"` for a pre-1.0 first release, `"5 -
-  Production/Stable"` once 1.0 ships).
+  have) -- see "One-time setup" above.
+
+`pyproject.toml`'s `classifiers` was bumped to `"Development Status ::
+4 - Beta"` (2026-08-18): all 14 packages are implemented and tested, but
+the project is still pre-1.0 (breaking changes allowed with just a MINOR
+bump per `docs/compatibility_policy.md`) and has no real-world install
+base yet, so `"5 - Production/Stable"` isn't accurate until `1.0.0`
+ships.
