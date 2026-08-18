@@ -82,8 +82,11 @@ been split into its own repository yet.
 
 ## Installation
 
-The `pymiai` distribution is not yet published to PyPI (see
-[docs/release_process.md](docs/release_process.md)). Install from source:
+```bash
+pip install pymiai
+```
+
+For development, install from source instead:
 
 ```bash
 git clone https://github.com/juancis44/MIAI.git

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- `README.md`'s "Installation" section: now leads with `pip install
+  pymiai` (the first PyPI release, `v0.16.0`, is live), with the
+  from-source instructions kept as a secondary "for development" path.
+- `docs/release_process.md`: recorded that `pymiai` 0.16.0 published to
+  PyPI successfully on 2026-08-18 -- TestPyPI dry run verified, then the
+  real release approved and confirmed installable from pypi.org.
+
 ## [0.16.0] - 2026-08-18
 
 ### Added

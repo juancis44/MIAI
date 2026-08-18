@@ -6,11 +6,14 @@ logging into pypi.org/test.pypi.org as the project owner), and the
 repeatable steps to cut and publish an actual release once that setup is
 done.
 
-Publishing has been prepared (this document, `.github/workflows/publish.yml`,
-and a verified local `python -m build` -- see below) but **not yet
-performed**: no MIAI release has been published to PyPI as of this
-writing. `README.md`'s "Installation" section reflects that; update it
-once the first release actually ships.
+**`pymiai` 0.16.0 was published to PyPI on 2026-08-18** -- the first
+MIAI release: https://pypi.org/project/pymiai/0.16.0/. `pip install
+pymiai` now works; `README.md`'s "Installation" section reflects that.
+The dry run against TestPyPI (`pymiai==0.16.0` on test.pypi.org) was
+verified first, and the real PyPI release was verified afterward by
+installing `pymiai==0.16.0` from pypi.org into a clean environment and
+importing `miai_core` and `miai_segmentation` (including the new
+`miai_segmentation.three_d.build_model`/`ArchitectureConfig`).
 
 ## Package name: `pymiai` (decided 2026-08-18)
 
@@ -104,5 +107,9 @@ Everything below is now unblocked -- the one-time setup above is done.
   changes allowed with just a MINOR bump per
   `docs/compatibility_policy.md`) and has no real-world install base yet,
   so `"5 - Production/Stable"` isn't accurate until `1.0.0` ships.
+- **First release published: `v0.16.0`, 2026-08-18** -- TestPyPI dry run
+  verified first, then the real GitHub Release triggered `publish-pypi`
+  (approved via the `pypi` environment's required reviewer), and
+  `pymiai==0.16.0` was confirmed live on pypi.org and installable.
 - Nothing left to prepare -- the next step is actually cutting a release
   (see "Cutting a release" above), whenever the maintainer decides to.
