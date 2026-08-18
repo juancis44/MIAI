@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `miai_segmentation.two_d`: per-slice 2D segmentation architectures --
+  `UNetConfig`/`build_unet` (`spatial_dims=2`) and
+  `AttentionUnetConfig`/`build_attention_unet`
+  (`monai.networks.nets.AttentionUnet`, Oktay et al. 2018), dispatched
+  via `ArchitectureConfig`/`build_model`, following
+  `miai_segmentation.three_d`'s pattern. `miai_segmentation.two_d.train`
+  re-exports `three_d.train` unchanged (the training loop is
+  dimension-agnostic); `miai_segmentation.two_d.infer` is a 2D-window
+  (`roi_size: tuple[int, int]`) variant of `three_d.infer`.
+- `miai_segmentation.two_half_d`: the 2.5D (stacked-adjacent-slice)
+  architecture -- `StackedUNetConfig`/`build_stacked_unet`, a 2D UNet
+  whose `in_channels` is the number of stacked adjacent slices,
+  predicting the center slice's mask, dispatched via
+  `ArchitectureConfig`/`build_model` for the same shape as the other two
+  modalities even though only one architecture exists yet. Training
+  re-exports `three_d.train`; inference re-exports `two_d.infer`
+  (spatially identical -- both are a 2D sliding window; only the model's
+  channel count differs, handled by the model itself).
+- `tests/test_segmentation_reexports.py`: asserts the `two_d`/
+  `two_half_d` re-export modules actually point at the objects they
+  claim to (`train_model`/`TrainingConfig` from `three_d.train`,
+  `run_inference`/`InferenceConfig` from `two_d.infer` for
+  `two_half_d`), so a future refactor that shadows a re-export with a
+  divergent definition fails loudly.
+
 ### Changed
 
 - `README.md`'s "Installation" section: now leads with `pip install
@@ -15,6 +42,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `docs/release_process.md`: recorded that `pymiai` 0.16.0 published to
   PyPI successfully on 2026-08-18 -- TestPyPI dry run verified, then the
   real release approved and confirmed installable from pypi.org.
+- `src/miai_segmentation/__init__.py`: docstring and `__version__`
+  (`0.2.0` -> `0.3.0`) updated now that all three modalities are
+  implemented; also corrects an inaccurate claim that
+  `TrainingStage`/`InferenceStage` already select a modality from YAML
+  -- they still hardcode `three_d` (see "Not done" below).
+- `docs/roadmap.md`'s Phase 8 section: checked off `two_d`/`two_half_d`
+  and added an explicit scope-boundary note (see "Not done" below).
+
+### Not done (scoped out, tracked in `docs/roadmap.md`)
+
+- `two_d`/`two_half_d` are **not** wired into
+  `TrainingStage`/`InferenceStage`/`ExportStage` -- those stages still
+  hardcode `miai_segmentation.three_d`. Teaching the pipeline to run a
+  2D/2.5D case (per-slice extraction, stacked-slice assembly, 2D-shaped
+  transforms) needs changes to `miai_datasets`/`miai_transforms`, which
+  currently assume whole-volume NIfTI cases end to end -- a larger,
+  separate change than a config-field rename, deferred until explicitly
+  scoped.
 
 ## [0.16.0] - 2026-08-18
 

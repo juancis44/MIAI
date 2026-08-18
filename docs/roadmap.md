@@ -271,7 +271,7 @@ ecosystem diagram are now implemented -- none remain marked `[planned]`.
 PyPI packaging/publishing remains explicitly paused (see "Project
 infrastructure improvements" above).
 
-## Phase 8 -- `miai-segmentation` modality expansion *(in progress)*
+## Phase 8 -- `miai-segmentation` modality expansion *(architectures done, pipeline wiring pending)*
 
 `miai-segmentation` originally offered a single reference architecture
 (MONAI `UNet`, implicitly 3D). Scoped after a project-state review
@@ -290,10 +290,40 @@ architecture from YAML instead of the package offering only one model.
   dispatch point so `TrainingStage`/`InferenceStage`/`ExportStage`
   (`miai_pipeline.stages.*`) depend on one config field
   (`architecture`, replacing the old `unet` field) regardless of which
-  3D architecture a run picks.
-- [ ] `miai_segmentation.two_d`: per-slice 2D architectures. Not started.
-- [ ] `miai_segmentation.two_half_d`: 2.5D (stacked-adjacent-slice)
-  architectures. Not started.
+  3D architecture a run picks. **Wired into the pipeline stages.**
+- [x] `miai_segmentation.two_d`: per-slice 2D architectures --
+  `UNetConfig`/`build_unet` (`spatial_dims=2`) and
+  `AttentionUnetConfig`/`build_attention_unet`
+  (`monai.networks.nets.AttentionUnet`, Oktay et al. 2018), dispatched
+  via `ArchitectureConfig`/`build_model`, same pattern as `three_d`.
+  Training re-exports `miai_segmentation.three_d.train` unchanged (the
+  loop is dimension-agnostic); inference is a 2D-window variant of
+  `three_d.infer`. **Not wired into the pipeline stages** -- see below.
+- [x] `miai_segmentation.two_half_d`: 2.5D (stacked-adjacent-slice)
+  architecture -- `StackedUNetConfig`/`build_stacked_unet` (a 2D UNet
+  whose `in_channels` is the number of stacked adjacent slices,
+  predicting the center slice's mask), dispatched via
+  `ArchitectureConfig`/`build_model` for consistency even though only
+  one architecture exists today. Training re-exports
+  `miai_segmentation.three_d.train`; inference re-exports
+  `miai_segmentation.two_d.infer` (spatially identical -- both are a 2D
+  sliding window; only the model's channel count differs, which the
+  model itself handles). **Not wired into the pipeline stages** -- see
+  below.
+
+**Scope boundary, explicit:** `two_d` and `two_half_d` are complete and
+independently usable (build a model, train it, run inference -- see
+each subpackage's docstring and `docs/user_guide.md`'s per-package
+reference table), matching the original ask to add each modality's
+representative architectures. What's still open is modality selection
+inside `TrainingStage`/`InferenceStage`/`ExportStage`: those stages
+still hardcode `miai_segmentation.three_d`, and `miai_datasets`/
+`miai_transforms` currently assume whole-volume NIfTI cases end to end
+-- teaching the pipeline to run a 2D/2.5D case (per-slice extraction,
+stacked-slice assembly for 2.5D, 2D-shaped transforms) is a larger,
+separate change to the dataset/transform layer, not just a config-field
+rename like the 3D `unet:` -> `architecture:` change was. Deferred until
+that's explicitly scoped.
 
 ## Working principle
 

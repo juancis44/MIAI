@@ -163,9 +163,11 @@ follow.
 (`monai.networks.nets.UNet`) or `"segresnet"` (`monai.networks.nets.
 SegResNet`) -- with the matching `architecture.unet`/`architecture.
 segresnet` block configuring it (see
-`miai_segmentation.three_d.models.ArchitectureConfig`). 2D and 2.5D
-modalities are planned but not yet implemented -- see
-[roadmap.md](roadmap.md), Phase 8. `train_transforms`/`val_transforms` are
+`miai_segmentation.three_d.models.ArchitectureConfig`). This pipeline
+stage only supports the 3D modality today -- `miai_segmentation.two_d`
+and `.two_half_d` exist and are usable standalone (see the per-package
+reference table below), but aren't selectable from this YAML yet; see
+[roadmap.md](roadmap.md), Phase 8 for why. `train_transforms`/`val_transforms` are
 built from `miai_transforms.TRANSFORM_REGISTRY` -- see that module for
 every registered transform name and its params.
 
@@ -274,7 +276,9 @@ full picture):
 | `miai_dicom` | `read_dicom`, `write_dicom`, `extract_metadata`, `anonymize`, `load_series` (`DicomSeries`), `validate_dataset` | DICOM I/O, metadata, de-identification |
 | `miai_transforms` | `build_transforms`, `TransformConfig`, `TRANSFORM_REGISTRY` | Config-driven MONAI + SimpleITK transform pipelines |
 | `miai_datasets` | `build_dataset`, `build_dataloader`, `manifest_split_to_data_dicts` | Manifest -> MONAI `Dataset`/`DataLoader` |
-| `miai_segmentation.three_d` | `ArchitectureConfig`, `build_model`, `train_model`, `run_inference` | Reference 3D segmentation (UNet, SegResNet) -- see the walkthrough above for the config shape |
+| `miai_segmentation.three_d` | `ArchitectureConfig`, `build_model`, `train_model`, `run_inference` | Reference 3D segmentation (UNet, SegResNet) -- wired into the pipeline stages above |
+| `miai_segmentation.two_d` | `ArchitectureConfig`, `build_model`, `train_model`, `run_inference` | Per-slice 2D segmentation (UNet, AttentionUnet) -- usable standalone, not yet wired into the pipeline stages |
+| `miai_segmentation.two_half_d` | `ArchitectureConfig`, `build_model`, `train_model`, `run_inference` | 2.5D stacked-adjacent-slice segmentation (a 2D UNet over stacked slices) -- usable standalone, not yet wired into the pipeline stages |
 | `miai_evaluation` | `evaluate_predictions`, `compute_case_metrics`, `MetricsConfig` | Dice/Hausdorff/IoU/sensitivity/specificity/volume-similarity scoring |
 | `miai_registration` | `register_images`, `apply_transform`, `read_transform`/`write_transform` | Rigid/affine/bspline registration via SimpleITK |
 | `miai_reconstruction` | `simulate_kspace`, `reconstruct_from_kspace`, `build_undersampling_mask`, `reconstruction_quality` | MRI k-space simulation/reconstruction, PSNR/SSIM |
