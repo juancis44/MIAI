@@ -1,4 +1,11 @@
-"""Training loop for a MIAI binary segmentation model."""
+"""Training loop for a MIAI 3D binary segmentation model.
+
+Dimension-agnostic in practice (it only calls ``model(inputs)`` and
+scores the result), but lives under :mod:`miai_segmentation.three_d`
+alongside the architectures it is meant to train -- the 2D/2.5D
+modalities may need their own variants later (e.g. 2.5D reassembling
+per-slice batches into a volume before computing Dice).
+"""
 
 from __future__ import annotations
 
@@ -58,7 +65,7 @@ def train_model(
 
     Args:
         model: The model to train (e.g. from
-            :func:`miai_segmentation.models.build_unet`).
+            :func:`miai_segmentation.three_d.models.build_model`).
         train_loader: Any iterable of batches with ``"image"`` and
             ``"label"`` keys (typically a
             :class:`torch.utils.data.DataLoader`, but any iterable

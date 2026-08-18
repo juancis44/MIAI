@@ -8,7 +8,7 @@ from miai_deploy.bundle import BundleMetadata, write_bundle
 from miai_deploy.export import ExportConfig
 from miai_pipeline.context import PipelineContext
 from miai_pipeline.stage import PipelineStage
-from miai_segmentation.models import UNetConfig, build_unet
+from miai_segmentation.three_d.models import ArchitectureConfig, build_model
 
 logger = get_logger(__name__)
 
@@ -18,8 +18,10 @@ class ExportStageConfig(MIAIBaseConfig):
 
     Attributes:
         output_dir: Directory the deployment bundle is written to.
-        unet: Model architecture configuration. Must match the
-            architecture the checkpoint was trained with.
+        architecture: 3D model architecture selection and configuration
+            (see :class:`~miai_segmentation.three_d.models.
+            ArchitectureConfig`). Must match the architecture the
+            checkpoint was trained with.
         export: Export format/tracing parameters.
         metadata: Reproducibility metadata for this bundle.
         checkpoint_path: Path to a trained checkpoint. If ``None``
@@ -30,7 +32,7 @@ class ExportStageConfig(MIAIBaseConfig):
     """
 
     output_dir: str
-    unet: UNetConfig = UNetConfig()
+    architecture: ArchitectureConfig = ArchitectureConfig()
     export: ExportConfig = ExportConfig()
     metadata: BundleMetadata
     checkpoint_path: str | None = None
@@ -61,7 +63,7 @@ class ExportStage(PipelineStage):
         """Run the stage; see the class docstring for its read/write contract."""
         checkpoint_path = self.config.checkpoint_path or context.require("model_checkpoint_path")
 
-        model = build_unet(self.config.unet)
+        model = build_model(self.config.architecture)
         bundle_path = write_bundle(
             model,
             checkpoint_path,

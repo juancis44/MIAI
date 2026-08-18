@@ -1,4 +1,4 @@
-"""Sliding-window inference for a trained segmentation model."""
+"""Sliding-window inference for a trained 3D segmentation model."""
 
 from __future__ import annotations
 
@@ -65,7 +65,7 @@ def run_inference(
     Args:
         model: An untrained model with the same architecture used to
             produce ``checkpoint_path`` (e.g. via
-            :func:`miai_segmentation.models.build_unet`).
+            :func:`miai_segmentation.three_d.models.build_model`).
         data_loader: Any iterable of one-case batches with an
             ``"image"`` key (typically a
             :class:`torch.utils.data.DataLoader`, but any iterable
@@ -76,7 +76,7 @@ def run_inference(
             copy spatial metadata into the prediction and to name the
             output file.
         checkpoint_path: Path to a state dict saved by
-            :func:`miai_segmentation.train.train_model`.
+            :func:`miai_segmentation.three_d.train.train_model`.
         config: Sliding-window inference parameters.
         output_dir: Directory predictions are written to (created if
             missing).

@@ -1,30 +1,32 @@
-"""MIAI Segmentation: reference binary 3D segmentation on top of MONAI.
+"""MIAI Segmentation: reference segmentation on top of MONAI.
 
-Provides a MONAI :class:`~monai.networks.nets.UNet` builder
-(:mod:`miai_segmentation.models`), a supervised training loop
-(:mod:`miai_segmentation.train`), and sliding-window inference
-(:mod:`miai_segmentation.infer`), each configured through a
-:class:`~miai_core.config.MIAIBaseConfig` subclass so an experiment is
-fully described by its YAML config. Used by
-:class:`~miai_pipeline.stages.training.TrainingStage` and
-:class:`~miai_pipeline.stages.inference.InferenceStage` to implement
-the ``training`` / ``inference`` steps of the clinical workflow.
+Organized by imaging modality, one subpackage per modality:
+
+- :mod:`miai_segmentation.three_d` -- full-volume architectures (UNet,
+  SegResNet), config-driven training and sliding-window inference.
+  Implemented.
+- ``miai_segmentation.two_d`` -- per-slice 2D architectures. Not yet
+  implemented; planned as a follow-up to ``three_d``.
+- ``miai_segmentation.two_half_d`` -- 2.5D (stacked-adjacent-slice)
+  architectures. Not yet implemented; planned as a follow-up to
+  ``three_d``.
+
+Each modality is expected to expose its own architecture configs and a
+``build_model`` dispatcher (see :mod:`miai_segmentation.three_d.models`),
+so :class:`~miai_pipeline.stages.training.TrainingStage` and
+:class:`~miai_pipeline.stages.inference.InferenceStage` can select a
+modality and architecture entirely from YAML. Import a modality's API
+directly from its subpackage, e.g.
+``from miai_segmentation.three_d import build_model``.
+:class:`SegmentationError` is the one exception shared across all
+modalities and is re-exported here for convenience.
 """
 
 from miai_segmentation.exceptions import SegmentationError
-from miai_segmentation.infer import InferenceConfig, run_inference
-from miai_segmentation.models import UNetConfig, build_unet
-from miai_segmentation.train import TrainingConfig, train_model
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
-    "build_unet",
-    "UNetConfig",
-    "train_model",
-    "TrainingConfig",
-    "run_inference",
-    "InferenceConfig",
     "SegmentationError",
     "__version__",
 ]

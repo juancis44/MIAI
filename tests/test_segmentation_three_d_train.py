@@ -1,4 +1,4 @@
-"""Tests for miai_segmentation.train (tiny real tensors, CPU only)."""
+"""Tests for miai_segmentation.three_d.train (tiny real tensors, CPU only)."""
 
 from pathlib import Path
 
@@ -10,8 +10,8 @@ from monai.transforms import AsDiscrete, Compose, EnsureTyped
 
 from conftest import make_synthetic_volume_pair
 from miai_segmentation.exceptions import SegmentationError
-from miai_segmentation.models import UNetConfig, build_unet
-from miai_segmentation.train import TrainingConfig, train_model
+from miai_segmentation.three_d.models import UNetConfig, build_unet
+from miai_segmentation.three_d.train import TrainingConfig, train_model
 from miai_transforms.sitk_transforms import LoadImageSitkd
 
 _UNET_CONFIG = UNetConfig(channels=(4, 8), strides=(2,), num_res_units=0)
@@ -74,7 +74,7 @@ def _dice_on_loader(model: torch.nn.Module, loader: DataLoader) -> float:
     """Compute mean Dice of ``model``'s (thresholded) predictions on ``loader``.
 
     Mirrors train_model's own validation-scoring logic, but lives here
-    (not imported from miai_segmentation.train) so this test measures
+    (not imported from miai_segmentation.three_d.train) so this test measures
     actual segmentation quality through a path independent of the
     training loop's internal bookkeeping.
     """

@@ -10,8 +10,8 @@ from miai_datasets.manifest import manifest_split_to_data_dicts
 from miai_pipeline.context import PipelineContext
 from miai_pipeline.exceptions import StageError
 from miai_pipeline.stage import PipelineStage
-from miai_segmentation.infer import InferenceConfig, run_inference
-from miai_segmentation.models import UNetConfig, build_unet
+from miai_segmentation.three_d.infer import InferenceConfig, run_inference
+from miai_segmentation.three_d.models import ArchitectureConfig, build_model
 from miai_transforms.compose import build_transforms
 from miai_transforms.config import TransformConfig
 
@@ -26,8 +26,10 @@ class InferenceStageConfig(MIAIBaseConfig):
         transforms: Transform pipeline applied to test cases (should
             match the training stage's ``val_transforms`` -- no random
             augmentation).
-        unet: Model architecture configuration. Must match the
-            architecture the checkpoint was trained with.
+        architecture: 3D model architecture selection and configuration
+            (see :class:`~miai_segmentation.three_d.models.
+            ArchitectureConfig`). Must match the architecture the
+            checkpoint was trained with.
         inference: Sliding-window inference parameters.
         checkpoint_path: Path to a trained checkpoint. If ``None``
             (default), falls back to the ``model_checkpoint_path``
@@ -38,7 +40,7 @@ class InferenceStageConfig(MIAIBaseConfig):
 
     output_dir: str
     transforms: TransformConfig
-    unet: UNetConfig = UNetConfig()
+    architecture: ArchitectureConfig = ArchitectureConfig()
     inference: InferenceConfig = InferenceConfig()
     checkpoint_path: str | None = None
 
@@ -83,7 +85,7 @@ class InferenceStage(PipelineStage):
 
         checkpoint_path = self.config.checkpoint_path or context.require("model_checkpoint_path")
 
-        model = build_unet(self.config.unet)
+        model = build_model(self.config.architecture)
         prediction_paths = run_inference(
             model,
             test_loader,

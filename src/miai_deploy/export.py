@@ -32,7 +32,7 @@ class ExportConfig(MIAIBaseConfig):
         example_input_shape: Shape of the dummy tensor used to trace
             the model, ``(B, C, D, H, W)``. Must be a shape the model
             actually accepts -- for MIAI's reference
-            :class:`~miai_segmentation.models.UNetConfig` architecture,
+            :class:`~miai_segmentation.three_d.models.UNetConfig` architecture,
             each spatial dimension must be divisible by
             ``2 ** (len(channels) - 1)`` (the number of downsampling
             levels), matching the same constraint documented on
@@ -62,7 +62,7 @@ def export_model(
         model: An untrained model with the same architecture used to
             produce ``checkpoint_path``.
         checkpoint_path: Path to a state dict saved by e.g.
-            :func:`miai_segmentation.train.train_model`.
+            :func:`miai_segmentation.three_d.train.train_model`.
         config: Export parameters.
         output_path: Where the exported artifact is written. Parent
             directories are created if missing.

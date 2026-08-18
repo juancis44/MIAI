@@ -1,4 +1,4 @@
-"""Tests for miai_segmentation.infer (tiny real tensors, CPU only)."""
+"""Tests for miai_segmentation.three_d.infer (tiny real tensors, CPU only)."""
 
 from collections.abc import Iterator
 from pathlib import Path
@@ -11,8 +11,8 @@ from monai.transforms import Compose, EnsureTyped
 
 from conftest import make_synthetic_volume_pair
 from miai_segmentation.exceptions import SegmentationError
-from miai_segmentation.infer import InferenceConfig, run_inference
-from miai_segmentation.models import UNetConfig, build_unet
+from miai_segmentation.three_d.infer import InferenceConfig, run_inference
+from miai_segmentation.three_d.models import UNetConfig, build_unet
 from miai_transforms.sitk_transforms import LoadImageSitkd
 
 _UNET_CONFIG = UNetConfig(channels=(4, 8), strides=(2,), num_res_units=0)

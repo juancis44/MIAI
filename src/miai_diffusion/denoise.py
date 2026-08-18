@@ -91,7 +91,7 @@ def run_denoising(
     :func:`denoise_volume`, and writes the result copying the source
     file's spatial metadata (spacing/origin/direction) -- the same
     SimpleITK-only I/O convention used throughout MIAI (see
-    :func:`miai_segmentation.infer.run_inference`).
+    :func:`miai_segmentation.three_d.infer.run_inference`).
 
     Args:
         model: An untrained model with the same architecture used to

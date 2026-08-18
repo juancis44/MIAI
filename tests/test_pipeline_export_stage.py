@@ -12,9 +12,10 @@ from miai_deploy.bundle import BundleMetadata
 from miai_deploy.export import ExportConfig
 from miai_pipeline.context import PipelineContext
 from miai_pipeline.stages.export import ExportStage, ExportStageConfig
-from miai_segmentation.models import UNetConfig, build_unet
+from miai_segmentation.three_d.models import ArchitectureConfig, UNetConfig, build_unet
 
 _UNET_CONFIG = UNetConfig(channels=(4, 8), strides=(2,), num_res_units=1)
+_ARCHITECTURE_CONFIG = ArchitectureConfig(kind="unet", unet=_UNET_CONFIG)
 
 
 @pytest.mark.slow
@@ -28,7 +29,7 @@ def test_export_stage_writes_bundle_using_context_checkpoint(tmp_path: Path) -> 
     stage = ExportStage(
         ExportStageConfig(
             output_dir=str(tmp_path / "bundle"),
-            unet=_UNET_CONFIG,
+            architecture=_ARCHITECTURE_CONFIG,
             export=ExportConfig(format="torchscript", example_input_shape=(1, 1, 8, 8, 8)),
             metadata=BundleMetadata(name="test-unet", version="0.1.0"),
         )

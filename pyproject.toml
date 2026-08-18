@@ -112,7 +112,7 @@ module = [
     "miai_pipeline.stages.preprocessing",
     "miai_pipeline.stages.registration",
     "miai_pipeline.stages.denoising",
-    "miai_segmentation.infer",
+    "miai_segmentation.three_d.infer",
     "miai_transforms.sitk_transforms",
     "miai_evaluation.evaluate",
     "miai_registration.register",
@@ -134,9 +134,9 @@ module = [
     "miai_transforms.compose",
     "miai_transforms.sitk_transforms",
     "miai_datasets.loaders",
-    "miai_segmentation.models",
-    "miai_segmentation.train",
-    "miai_segmentation.infer",
+    "miai_segmentation.three_d.models",
+    "miai_segmentation.three_d.train",
+    "miai_segmentation.three_d.infer",
     "miai_evaluation.metrics",
     "miai_diffusion.train",
     "miai_pipeline.stages.training",
@@ -155,7 +155,7 @@ module = [
     "miai_visualization.metrics",
     "miai_visualization.embeddings",
     "test_deploy_export",
-    "test_segmentation_train",
+    "test_segmentation_three_d_train",
 ]
 disallow_untyped_calls = false
 disallow_untyped_defs = false
@@ -192,7 +192,7 @@ module = [
     "test_registration_apply",
     "test_registration_transform_io",
     "test_diffusion_denoise",
-    "test_segmentation_infer",
+    "test_segmentation_three_d_infer",
     "test_registration_register",
 ]
 disallow_untyped_calls = false

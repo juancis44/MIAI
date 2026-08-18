@@ -47,13 +47,13 @@ def evaluate_predictions(
     Reads each prediction/ground-truth pair from disk via SimpleITK
     (consistent with the rest of MIAI's image I/O -- see
     :class:`~miai_transforms.sitk_transforms.LoadImageSitkd` and
-    :func:`miai_segmentation.infer.run_inference`), scores it with
+    :func:`miai_segmentation.three_d.infer.run_inference`), scores it with
     :func:`miai_evaluation.metrics.compute_case_metrics`, and averages
     across cases.
 
     Args:
         prediction_paths: One prediction NIfTI per case (e.g. from
-            :func:`miai_segmentation.infer.run_inference`).
+            :func:`miai_segmentation.three_d.infer.run_inference`).
         ground_truth_paths: One ground truth label NIfTI per case, in
             the same order as ``prediction_paths``.
         config: Which metrics to compute.

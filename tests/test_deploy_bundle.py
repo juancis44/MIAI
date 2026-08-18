@@ -9,7 +9,7 @@ import torch
 
 from miai_deploy.bundle import BundleMetadata, write_bundle
 from miai_deploy.export import ExportConfig
-from miai_segmentation.models import UNetConfig, build_unet
+from miai_segmentation.three_d.models import UNetConfig, build_unet
 
 _UNET_CONFIG = UNetConfig(channels=(4, 8), strides=(2,), num_res_units=1)
 _INPUT_SHAPE = (1, 1, 8, 8, 8)

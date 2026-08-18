@@ -271,6 +271,30 @@ ecosystem diagram are now implemented -- none remain marked `[planned]`.
 PyPI packaging/publishing remains explicitly paused (see "Project
 infrastructure improvements" above).
 
+## Phase 8 -- `miai-segmentation` modality expansion *(in progress)*
+
+`miai-segmentation` originally offered a single reference architecture
+(MONAI `UNet`, implicitly 3D). Scoped after a project-state review
+(2026-08-17) to organize the package by imaging modality --
+`miai_segmentation.<modality>` -- and add the architectures most
+representative of each, so an experiment picks a modality and
+architecture from YAML instead of the package offering only one model.
+
+- [x] `miai_segmentation.three_d`: reorganized the existing UNet
+  reference model (unchanged behavior) plus training
+  (`miai_segmentation.three_d.train`) and sliding-window inference
+  (`miai_segmentation.three_d.infer`, dimension-agnostic in practice)
+  into their own subpackage. Added `SegResNetConfig`/`build_segresnet`
+  (`monai.networks.nets.SegResNet`, Myronenko 2018) as a second 3D
+  architecture, and `ArchitectureConfig`/`build_model` as a single
+  dispatch point so `TrainingStage`/`InferenceStage`/`ExportStage`
+  (`miai_pipeline.stages.*`) depend on one config field
+  (`architecture`, replacing the old `unet` field) regardless of which
+  3D architecture a run picks.
+- [ ] `miai_segmentation.two_d`: per-slice 2D architectures. Not started.
+- [ ] `miai_segmentation.two_half_d`: 2.5D (stacked-adjacent-slice)
+  architectures. Not started.
+
 ## Working principle
 
 We do not start a phase's package until the previous phase's foundations are

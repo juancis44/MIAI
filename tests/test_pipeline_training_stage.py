@@ -10,11 +10,13 @@ from miai_pipeline.context import PipelineContext
 from miai_pipeline.exceptions import StageError
 from miai_pipeline.stages.dataset import DatasetConfig, DatasetStage
 from miai_pipeline.stages.training import TrainingStage, TrainingStageConfig
-from miai_segmentation.models import UNetConfig
-from miai_segmentation.train import TrainingConfig
+from miai_segmentation.three_d.models import ArchitectureConfig, UNetConfig
+from miai_segmentation.three_d.train import TrainingConfig
 from miai_transforms.config import TransformConfig, TransformSpec
 
-_UNET_CONFIG = UNetConfig(channels=(4, 8), strides=(2,), num_res_units=0)
+_ARCHITECTURE_CONFIG = ArchitectureConfig(
+    kind="unet", unet=UNetConfig(channels=(4, 8), strides=(2,), num_res_units=0)
+)
 
 _LOAD_TRANSFORMS = [
     TransformSpec(name="load_image", params={"keys": ["image", "label"]}),
@@ -54,7 +56,7 @@ def test_training_stage_writes_model_checkpoint(tmp_path: Path) -> None:
             checkpoint_dir=str(tmp_path / "checkpoints"),
             train_transforms=TransformConfig(transforms=_LOAD_TRANSFORMS),
             val_transforms=TransformConfig(transforms=_LOAD_TRANSFORMS),
-            unet=_UNET_CONFIG,
+            architecture=_ARCHITECTURE_CONFIG,
             training=TrainingConfig(max_epochs=1, device="cpu"),
         )
     )
@@ -74,7 +76,7 @@ def test_training_stage_empty_train_split_raises(tmp_path: Path) -> None:
             checkpoint_dir=str(tmp_path / "checkpoints"),
             train_transforms=TransformConfig(transforms=_LOAD_TRANSFORMS),
             val_transforms=TransformConfig(transforms=_LOAD_TRANSFORMS),
-            unet=_UNET_CONFIG,
+            architecture=_ARCHITECTURE_CONFIG,
         )
     )
 

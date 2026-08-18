@@ -10,8 +10,8 @@ from miai_datasets.manifest import manifest_split_to_data_dicts
 from miai_pipeline.context import PipelineContext
 from miai_pipeline.exceptions import StageError
 from miai_pipeline.stage import PipelineStage
-from miai_segmentation.models import UNetConfig, build_unet
-from miai_segmentation.train import TrainingConfig, train_model
+from miai_segmentation.three_d.models import ArchitectureConfig, build_model
+from miai_segmentation.three_d.train import TrainingConfig, train_model
 from miai_transforms.compose import build_transforms
 from miai_transforms.config import TransformConfig
 
@@ -29,7 +29,9 @@ class TrainingStageConfig(MIAIBaseConfig):
         val_transforms: Transform pipeline applied to validation cases
             (typically the same deterministic steps as
             ``train_transforms``, without augmentation).
-        unet: Model architecture configuration.
+        architecture: 3D model architecture selection and configuration
+            (see :class:`~miai_segmentation.three_d.models.
+            ArchitectureConfig`).
         training: Training hyperparameters.
         dataloader: Batching/loading configuration. ``shuffle`` is
             forced to ``True`` for the training split and ``False`` for
@@ -39,7 +41,7 @@ class TrainingStageConfig(MIAIBaseConfig):
     checkpoint_dir: str
     train_transforms: TransformConfig
     val_transforms: TransformConfig
-    unet: UNetConfig = UNetConfig()
+    architecture: ArchitectureConfig = ArchitectureConfig()
     training: TrainingConfig = TrainingConfig()
     dataloader: DataLoaderConfig = DataLoaderConfig()
 
@@ -96,7 +98,7 @@ class TrainingStage(PipelineStage):
                 val_dataset, self.config.dataloader.model_copy(update={"shuffle": False})
             )
 
-        model = build_unet(self.config.unet)
+        model = build_model(self.config.architecture)
         checkpoint_path = train_model(
             model, train_loader, val_loader, self.config.training, self.config.checkpoint_dir
         )

@@ -7,8 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `miai_segmentation.three_d`: a new subpackage organizing MIAI's
+  segmentation package by imaging modality (3D now, 2D and 2.5D planned
+  -- see `docs/roadmap.md`'s Phase 8). Moved the existing UNet reference
+  model, training loop, and sliding-window inference here unchanged, and
+  added `SegResNetConfig`/`build_segresnet` (`monai.networks.nets.
+  SegResNet`) as a second 3D architecture, plus `ArchitectureConfig`/
+  `build_model` as a single dispatch point so callers pick an
+  architecture via one `kind: "unet" | "segresnet"` field instead of
+  calling a per-architecture builder directly.
+
 ### Changed
 
+- `miai_pipeline.stages.training.TrainingStageConfig`,
+  `.inference.InferenceStageConfig`, and `.export.ExportStageConfig`:
+  renamed the `unet: UNetConfig` field to `architecture:
+  ArchitectureConfig`, so a pipeline YAML now selects the 3D
+  architecture (and its settings) under `architecture.kind` /
+  `architecture.unet` / `architecture.segresnet` instead of assuming
+  UNet. Updated `examples/configs/pipeline.yaml` to match. This is a
+  breaking config-shape change (`unet:` -> `architecture: {kind: unet,
+  unet: {...}}`); acceptable pre-1.0 with no PyPI-published consumers.
+- Moved `miai_segmentation.models`/`.train`/`.infer` to
+  `miai_segmentation.three_d.models`/`.train`/`.infer`. Every internal
+  caller (`miai_pipeline.stages.*`, tests) and the mypy per-module
+  override lists in `pyproject.toml` were updated to the new paths.
 - Refreshed `locks/requirements-lock.txt` via 7 of the 10 open Dependabot
   `pip` PRs: `ast-serialize`, `filelock`, `fsspec`, `hf-xet`, `librt`,
   `packaging`, `tqdm` (each landed at whatever their latest PyPI release was

@@ -39,7 +39,7 @@ class LoadImageSitkd(MapTransform):
     :func:`SimpleITK.GetImageFromArray` plus
     ``image.CopyInformation(reference_image)``, with no axis
     transposition needed -- see
-    :func:`miai_segmentation.infer.run_inference`.
+    :func:`miai_segmentation.three_d.infer.run_inference`.
     """
 
     def __init__(self, keys: KeysCollection, allow_missing_keys: bool = False) -> None:
