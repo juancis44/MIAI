@@ -2,11 +2,11 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|Grep",
         "hooks": [
           {
             "type": "command",
-            "command": "/sessions/funny-clever-sagan/.local/bin/graphify hook-guard search"
+            "command": "/root/.local/bin/graphify hook-guard search"
           }
         ]
       },
@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/sessions/funny-clever-sagan/.local/bin/graphify hook-guard read"
+            "command": "/root/.local/bin/graphify hook-guard read"
           }
         ]
       }
