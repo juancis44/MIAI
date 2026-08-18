@@ -12,53 +12,47 @@ performed**: no MIAI release has been published to PyPI as of this
 writing. `README.md`'s "Installation" section reflects that; update it
 once the first release actually ships.
 
-## Package name: `miai` (decided 2026-08-18)
+## Package name: `pymiai` (decided 2026-08-18)
 
-`pyproject.toml` names the single PyPI package `miai` (`name = "miai"`).
-A built wheel bundles **all 14** import packages (`miai_core`,
+`pyproject.toml` names the single PyPI package `pymiai` (`name =
+"pymiai"`). A built wheel bundles **all 14** import packages (`miai_core`,
 `miai_dicom`, `miai_pipeline`, ... `miai_visualization`) -- confirmed
 locally: `python -m build` then inspecting the wheel shows every `miai_*`
-top-level package inside one `miai-<version>-py3-none-any.whl`. This is a
-side effect of the monorepo using a single `pyproject.toml` (see
+top-level package inside one `pymiai-<version>-py3-none-any.whl`. This is
+a side effect of the monorepo using a single `pyproject.toml` (see
 `docs/architecture.md`, "Repository strategy") rather than one
-`pyproject.toml` per package, so `pip install miai` installs the entire
-ecosystem -- which is exactly what the name implies.
+`pyproject.toml` per package, so `pip install pymiai` installs the entire
+ecosystem.
 
-(The package was previously going to be named `miai-core` -- the same
-string as the `miai_core` utilities sub-package -- which would have
-misleadingly implied `pip install miai-core` only installed the utilities
-module rather than all 14 packages. `miai` was chosen instead to avoid
-that collision. Both names were confirmed available on PyPI as of
-2026-08-18; `miai` has since been registered as the trusted-publisher
-target, see below.)
+Naming history: the package was first going to be `miai-core` (the same
+string as the `miai_core` utilities sub-package, misleadingly implying
+`pip install miai-core` only installed the utilities module rather than
+all 14 packages), then `miai` -- but PyPI's pending-trusted-publisher form
+rejected `miai` as "too similar to an existing project" (PyPI runs a
+fuzzy/confusable-name check beyond exact PEP 503 normalization, especially
+aggressive for short names, and doesn't disclose which project it
+collides with). `pymiai` was tried next and accepted.
 
-## One-time setup (PyPI project owner only, not automatable from CI)
+## One-time setup -- DONE (2026-08-18)
 
-Do this once, before the first release, on both **test.pypi.org** (for dry
-runs) and **pypi.org** (for real releases) -- they're separate accounts/
-projects with separate trusted-publisher configuration:
+Completed by the maintainer directly on PyPI/TestPyPI and in this
+repository's GitHub settings (none of this is automatable from CI):
 
-1. Create an account on [pypi.org](https://pypi.org) and
-   [test.pypi.org](https://test.pypi.org) if you don't have one (they're
-   independent accounts).
-2. Register a **pending trusted publisher** for `miai` -- PyPI supports
-   this *before* the project exists, so the very first publish doesn't
-   need an API token at all:
-   - pypi.org: account **Publishing** settings -> "Add a new pending
-     publisher" -> PyPI project name: `miai` -> owner: `juancis44` ->
-     repository name: `MIAI` -> workflow name: `publish.yml` ->
-     environment name: `pypi`.
-   - test.pypi.org: same steps, environment name: `testpypi` instead.
-3. In this GitHub repository's **Settings -> Environments**, create two
-   environments named exactly `pypi` and `testpypi` (matching step 2 and
-   `.github/workflows/publish.yml`'s `environment:` blocks). Optionally add
-   a required reviewer to the `pypi` environment so a real publish needs a
-   manual approval click, even though the workflow itself only runs on a
-   published GitHub Release or explicit manual dispatch.
+1. PyPI and TestPyPI accounts created.
+2. **Pending trusted publisher** registered for `pymiai` on both
+   pypi.org and test.pypi.org (PyPI project name: `pymiai`, owner:
+   `juancis44`, repository name: `MIAI`, workflow name: `publish.yml`,
+   environment name: `pypi` on pypi.org / `testpypi` on test.pypi.org).
+3. GitHub **Settings -> Environments** has `pypi` and `testpypi` created,
+   matching `.github/workflows/publish.yml`'s `environment:` blocks.
+4. The repository's visibility was switched to **public**.
 
 No PyPI API token is created or stored anywhere -- `publish.yml` uses
 OIDC (`permissions: id-token: write` + `pypa/gh-action-pypi-publish`),
-which is what the trusted-publisher registration above authorizes.
+which is what the trusted-publisher registration above authorizes. A
+pending trusted publisher does not reserve the name or create the PyPI
+project until the first actual publish happens -- so `pymiai` is not yet
+a real PyPI project, only a pending registration.
 
 ## Verified locally before writing this workflow
 
@@ -70,6 +64,8 @@ containing all 14 `miai_*` packages, and install + import cleanly
 build step itself needs no further changes.
 
 ## Cutting a release
+
+Everything below is now unblocked -- the one-time setup above is done.
 
 1. Decide the version bump per `docs/compatibility_policy.md` and
    `docs/coding_standards.md` (SemVer). Update `pyproject.toml`'s
@@ -86,7 +82,7 @@ build step itself needs no further changes.
    trigger `.github/workflows/publish.yml` manually (Actions ->
    "Publish to PyPI" -> "Run workflow" -> target: `testpypi`), then verify
    the published version on test.pypi.org: `pip install --index-url
-   https://test.pypi.org/simple/ miai==X.Y.Z` in a scratch venv and
+   https://test.pypi.org/simple/ pymiai==X.Y.Z` in a scratch venv and
    confirm it imports.
 5. **Real release:** create a GitHub Release from the `vX.Y.Z` tag (GitHub
    UI: Releases -> "Draft a new release" -> choose the tag -> "Publish
@@ -94,17 +90,19 @@ build step itself needs no further changes.
    Publishing the Release triggers `publish.yml`'s `publish-pypi` job
    automatically.
 6. Confirm on pypi.org that the new version is live, and that
-   `pip install miai==X.Y.Z` works in a scratch environment.
+   `pip install pymiai==X.Y.Z` works in a scratch environment.
 
-## What still needs a decision from the maintainer (not done by this doc)
+## Status
 
-- Actually performing the one-time PyPI/TestPyPI trusted-publisher setup
-  (requires PyPI account access this repository's CI/tooling doesn't
-  have) -- see "One-time setup" above.
-
-`pyproject.toml`'s `classifiers` was bumped to `"Development Status ::
-4 - Beta"` (2026-08-18): all 14 packages are implemented and tested, but
-the project is still pre-1.0 (breaking changes allowed with just a MINOR
-bump per `docs/compatibility_policy.md`) and has no real-world install
-base yet, so `"5 - Production/Stable"` isn't accurate until `1.0.0`
-ships.
+- Package name: decided and registered (`pymiai`).
+- Trusted-publisher setup: done, both pypi.org and test.pypi.org.
+- GitHub environments (`pypi`, `testpypi`): created.
+- Repository visibility: public.
+- `pyproject.toml`'s `classifiers`: `"Development Status :: 4 - Beta"`
+  (bumped 2026-08-18 from `2 - Pre-Alpha`) -- all 14 packages are
+  implemented and tested, but the project is still pre-1.0 (breaking
+  changes allowed with just a MINOR bump per
+  `docs/compatibility_policy.md`) and has no real-world install base yet,
+  so `"5 - Production/Stable"` isn't accurate until `1.0.0` ships.
+- Nothing left to prepare -- the next step is actually cutting a release
+  (see "Cutting a release" above), whenever the maintainer decides to.

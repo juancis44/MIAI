@@ -115,6 +115,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `4 - Beta`. Reflects that all 14 packages are implemented and tested;
   not `5 - Production/Stable` since the project is still pre-1.0 (see
   `docs/compatibility_policy.md`) with no published release yet.
+- `pyproject.toml`'s PyPI package name: `miai` -> `pymiai`. PyPI's
+  pending-trusted-publisher form rejected `miai` as "too similar to an
+  existing project" (a fuzzy/confusable-name check beyond exact PEP 503
+  normalization, more aggressive for short names, without disclosing the
+  colliding project); `pymiai` was accepted. `.github/workflows/publish.yml`
+  and `README.md` updated to match. The maintainer has since completed
+  the PyPI/TestPyPI trusted-publisher registration, created the GitHub
+  `pypi`/`testpypi` environments, and made the repository public --
+  `docs/release_process.md` rewritten to reflect this is all done; the
+  only remaining step is cutting an actual release.
 
 ## [0.15.0] - 2026-08-17
 

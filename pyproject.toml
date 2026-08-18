@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "miai"
+name = "pymiai"
 version = "0.15.0"
 description = "MIAI: an open-source ecosystem for reproducible medical imaging workflows."
 readme = "README.md"

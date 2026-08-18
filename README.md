@@ -82,7 +82,7 @@ been split into its own repository yet.
 
 ## Installation
 
-The `miai` distribution is not yet published to PyPI (see
+The `pymiai` distribution is not yet published to PyPI (see
 [docs/release_process.md](docs/release_process.md)). Install from source:
 
 ```bash

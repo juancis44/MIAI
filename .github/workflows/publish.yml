@@ -52,14 +52,15 @@ jobs:
   publish-testpypi:
     # Manual dry run only -- verifies the built distribution actually
     # uploads and installs before trusting a real release to the same
-    # process. Requires "miai" to also be registered as a pending trusted
-    # publisher on test.pypi.org, separately from the real pypi.org one.
+    # process. Requires "pymiai" to also be registered as a pending
+    # trusted publisher on test.pypi.org, separately from the real
+    # pypi.org one.
     if: github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi'
     needs: build
     runs-on: ubuntu-latest
     environment:
       name: testpypi
-      url: https://test.pypi.org/p/miai
+      url: https://test.pypi.org/p/pymiai
     permissions:
       id-token: write # required for OIDC trusted publishing
     steps:
@@ -84,7 +85,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/miai
+      url: https://pypi.org/p/pymiai
     permissions:
       id-token: write # required for OIDC trusted publishing
     steps:
