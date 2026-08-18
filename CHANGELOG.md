@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-08-18
+
 ### Added
 
 - `SECURITY.md`: vulnerability reporting policy ahead of making the repo
@@ -47,12 +49,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   stored; publishing relies on this repository being registered as a
   trusted publisher on PyPI/TestPyPI.
 - `docs/release_process.md`: the one-time PyPI/TestPyPI trusted-publisher
-  setup a maintainer must do manually (not automatable from CI), the
-  repeatable release-cutting procedure, confirmation that a local
-  `python -m build` was verified to build/install/import cleanly, and an
-  open decision flagged for the maintainer: the PyPI package name
-  (`miai-core` vs `miai` -- the built wheel currently bundles all 14
-  `miai_*` packages under the single name `miai-core`).
+  setup (completed by the maintainer -- see below), the repeatable
+  release-cutting procedure, and confirmation that a local `python -m
+  build` was verified to build/install/import cleanly.
 
 ### Removed
 
