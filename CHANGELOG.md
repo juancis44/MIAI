@@ -27,6 +27,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `build_model` as a single dispatch point so callers pick an
   architecture via one `kind: "unet" | "segresnet"` field instead of
   calling a per-architecture builder directly.
+- `docs/compatibility_policy.md`: defines what counts as MIAI's public
+  API (scoped to `docs/api_design.md`'s "Package public surface"
+  section), the pre-1.0 versioning stance (0.x allows breaking changes
+  with only a MINOR bump, no deprecation cycle required), the SemVer
+  rules from 1.0 onward, and the 4-step deprecation cycle that applies
+  once 1.0 ships.
+- `docs/user_guide.md`: task-oriented usage guide beyond the README --
+  core concepts (`MIAIBaseConfig`, `PipelineStage`, `PipelineContext`),
+  a full walkthrough of `examples/configs/pipeline.yaml` stage by stage,
+  running the pipeline from Python and from the `miai-pipeline` CLI, a
+  table of optional stages outside the main clinical workflow, a
+  per-package quick-reference table for using one package standalone,
+  and a troubleshooting Q&A section.
+- `.github/workflows/publish.yml`: PyPI Trusted Publishing (OIDC)
+  workflow -- builds sdist/wheel, and publishes to TestPyPI (manual
+  dispatch only) or PyPI (on a published GitHub Release, or manual
+  dispatch) via `pypa/gh-action-pypi-publish`. No PyPI API token is
+  stored; publishing relies on this repository being registered as a
+  trusted publisher on PyPI/TestPyPI.
+- `docs/release_process.md`: the one-time PyPI/TestPyPI trusted-publisher
+  setup a maintainer must do manually (not automatable from CI), the
+  repeatable release-cutting procedure, confirmation that a local
+  `python -m build` was verified to build/install/import cleanly, and an
+  open decision flagged for the maintainer: the PyPI package name
+  (`miai-core` vs `miai` -- the built wheel currently bundles all 14
+  `miai_*` packages under the single name `miai-core`).
 
 ### Removed
 
@@ -60,6 +86,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   pins these exact `nvidia-cu13` versions as hard `==` dependencies, so
   bumping them independently is not resolvable without also bumping torch.
   Those 3 PRs should be closed rather than merged.
+- `docs/api_design.md`'s "Package public surface" section: rewritten to
+  formally describe the hierarchical sub-namespace pattern already used
+  by `miai_pipeline`/`.stages` and `miai_segmentation`/`.three_d` --
+  public API is the union of the root `__init__.py` plus any documented
+  sub-namespace `__init__.py` (one with its own module docstring and
+  explicit `__all__`); a module not re-exported at either level is
+  internal; sub-namespaces exist to avoid name collisions between
+  mutually-exclusive variants of the same role, not for organizing by
+  package size, and shouldn't be introduced preemptively.
+- `src/miai_segmentation/__init__.py`: docstring extended with an
+  explicit paragraph signposting the hierarchical pattern and pointing
+  to `docs/api_design.md` for the rationale.
+- `docs/coding_standards.md`'s "Versioning and commits" section: first
+  bullet now links to `docs/compatibility_policy.md`.
+- `README.md`: added `docs/user_guide.md` and
+  `docs/compatibility_policy.md` to the documentation table, and a
+  pointer to `docs/user_guide.md` ahead of the Installation section's
+  quick-example code blocks.
 
 ## [0.15.0] - 2026-08-17
 

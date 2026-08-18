@@ -34,7 +34,10 @@
 
 ## Versioning and commits
 
-- [Semantic Versioning](https://semver.org/) for all packages.
+- [Semantic Versioning](https://semver.org/) for all packages. See
+  [compatibility_policy.md](compatibility_policy.md) for exactly what's
+  covered, what counts as a breaking change, and the deprecation cycle a
+  breaking change goes through once MIAI reaches `1.0`.
 - [Conventional Commits](https://www.conventionalcommits.org/) for commit
   messages: `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`,
   `perf:`, `build:`, `ci:`.

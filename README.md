@@ -46,11 +46,13 @@ everything surrounding deep learning.
 
 | Document | Description |
 |---|---|
+| [docs/user_guide.md](docs/user_guide.md) | Task-oriented usage guide: a full pipeline walkthrough, a per-package quick reference, and troubleshooting |
 | [docs/vision.md](docs/vision.md) | Mission, philosophy, target users, scope |
 | [docs/architecture.md](docs/architecture.md) | Ecosystem layout and package boundaries |
 | [docs/roadmap.md](docs/roadmap.md) | Phased development plan |
 | [docs/coding_standards.md](docs/coding_standards.md) | Style, testing, versioning conventions |
 | [docs/api_design.md](docs/api_design.md) | API design principles across packages |
+| [docs/compatibility_policy.md](docs/compatibility_policy.md) | What's covered by SemVer and the deprecation cycle |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
 
 ## Ecosystem
@@ -87,6 +89,10 @@ git clone https://github.com/juancis44/MIAI.git
 cd MIAI
 pip install -e ".[dev]"
 ```
+
+These snippets are here to show the shape of each package's API. For a
+full walkthrough of wiring the whole clinical workflow together (and a
+per-package quick reference), see [docs/user_guide.md](docs/user_guide.md).
 
 Quick example — `miai-core` configuration and logging:
 

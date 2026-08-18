@@ -20,6 +20,14 @@ directly from its subpackage, e.g.
 ``from miai_segmentation.three_d import build_model``.
 :class:`SegmentationError` is the one exception shared across all
 modalities and is re-exported here for convenience.
+
+This root ``__init__.py`` deliberately does **not** re-export
+modality-specific names (``UNetConfig``, ``build_model``, ...) -- see
+docs/api_design.md's "Package public surface" section for why: a package
+gets a documented sub-namespace per mutually-exclusive variant (here, per
+modality) specifically to avoid name collisions between them, mirroring
+:mod:`miai_pipeline`'s root/``.stages`` split. Each modality subpackage's
+own ``__init__.py`` is the public API for that modality.
 """
 
 from miai_segmentation.exceptions import SegmentationError

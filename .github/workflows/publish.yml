@@ -1,0 +1,98 @@
+name: Publish to PyPI
+
+# Triggered by publishing a GitHub Release (the normal path: tag a commit,
+# then draft+publish a Release from that tag in the GitHub UI or `gh
+# release create`) or manually via workflow_dispatch for a dry run against
+# TestPyPI. Not triggered by every tag push -- publishing a package version
+# should be a deliberate, reviewed action, not an automatic side effect of
+# tagging.
+#
+# Uses PyPI's Trusted Publishing (OIDC): no PyPI API token is stored as a
+# GitHub secret. Instead, this repository is registered as a "trusted
+# publisher" on the PyPI project itself (or as a *pending* trusted
+# publisher before the project exists yet -- see docs/release_process.md
+# for the one-time setup this workflow depends on).
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Where to publish"
+        required: true
+        default: "testpypi"
+        type: choice
+        options:
+          - testpypi
+          - pypi
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install build tooling
+        run: pip install build
+
+      - name: Build sdist and wheel
+        run: python -m build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish-testpypi:
+    # Manual dry run only -- verifies the built distribution actually
+    # uploads and installs before trusting a real release to the same
+    # process. Requires "MIAI" (or whatever project name is chosen, see
+    # docs/release_process.md) to also be registered as a pending trusted
+    # publisher on test.pypi.org, separately from the real pypi.org one.
+    if: github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/miai-core
+    permissions:
+      id-token: write # required for OIDC trusted publishing
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  publish-pypi:
+    # Real release: either a published GitHub Release, or an explicit
+    # manual workflow_dispatch with target=pypi (e.g. to republish after
+    # fixing a publish-time-only issue without cutting a new version).
+    if: |
+      github.event_name == 'release' ||
+      (github.event_name == 'workflow_dispatch' && inputs.target == 'pypi')
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/miai-core
+    permissions:
+      id-token: write # required for OIDC trusted publishing
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
