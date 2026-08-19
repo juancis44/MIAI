@@ -17,15 +17,16 @@ from its subpackage, e.g. ``from miai_segmentation.three_d import
 build_model``. :class:`SegmentationError` is the one exception shared
 across all modalities and is re-exported here for convenience.
 
-Only :mod:`miai_segmentation.three_d` is currently wired into
+All three modalities are wired into
 :class:`~miai_pipeline.stages.training.TrainingStage`,
 :class:`~miai_pipeline.stages.inference.InferenceStage`, and
-:class:`~miai_pipeline.stages.export.ExportStage` -- those stages
-hardcode the 3D modality today. ``two_d`` and ``two_half_d`` are usable
-standalone (build a model, train it, run inference -- see each
-subpackage's docstring), but selecting a modality from pipeline YAML
-(rather than always assuming 3D) is not yet implemented; see
-`docs/roadmap.md`'s Phase 8 for status.
+:class:`~miai_pipeline.stages.export.ExportStage`, via
+:mod:`miai_segmentation.modality`'s ``modality``-selecting config
+(internal glue, not re-exported here -- see that module's docstring).
+Set ``architecture.modality`` to ``"three_d"`` (default), ``"two_d"``,
+or ``"two_half_d"`` in a stage's YAML config to pick one; see
+`docs/user_guide.md` for a 2D/2.5D example, including the
+``extract_slice``/``extract_slice_stack`` transforms 2D/2.5D need.
 
 This root ``__init__.py`` deliberately does **not** re-export
 modality-specific names (``UNetConfig``, ``build_model``, ...) -- see
@@ -38,7 +39,7 @@ own ``__init__.py`` is the public API for that modality.
 
 from miai_segmentation.exceptions import SegmentationError
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 __all__ = [
     "SegmentationError",

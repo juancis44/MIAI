@@ -15,9 +15,10 @@ duplicate implementation for the same reason
 
 from __future__ import annotations
 
-from miai_segmentation.two_d.infer import InferenceConfig, run_inference
+from miai_segmentation.two_d.infer import InferenceConfig, run_case_inference, run_inference
 
 __all__ = [
     "InferenceConfig",
     "run_inference",
+    "run_case_inference",
 ]

@@ -12,7 +12,7 @@ and inference (:mod:`miai_segmentation.two_d.infer`, a 2D-window variant
 of :mod:`miai_segmentation.three_d.infer`) work with either architecture.
 """
 
-from miai_segmentation.two_d.infer import InferenceConfig, run_inference
+from miai_segmentation.two_d.infer import InferenceConfig, run_case_inference, run_inference
 from miai_segmentation.two_d.models import (
     ArchitectureConfig,
     AttentionUnetConfig,
@@ -34,4 +34,5 @@ __all__ = [
     "train_model",
     "InferenceConfig",
     "run_inference",
+    "run_case_inference",
 ]

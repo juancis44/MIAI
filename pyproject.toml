@@ -114,6 +114,7 @@ module = [
     "miai_pipeline.stages.denoising",
     "miai_segmentation.three_d.infer",
     "miai_segmentation.two_d.infer",
+    "miai_datasets.slices",
     "miai_transforms.sitk_transforms",
     "miai_evaluation.evaluate",
     "miai_registration.register",
@@ -198,6 +199,7 @@ module = [
     "test_diffusion_denoise",
     "test_segmentation_three_d_infer",
     "test_registration_register",
+    "test_pipeline_two_d_modality",
 ]
 disallow_untyped_calls = false
 

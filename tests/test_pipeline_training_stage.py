@@ -10,12 +10,16 @@ from miai_pipeline.context import PipelineContext
 from miai_pipeline.exceptions import StageError
 from miai_pipeline.stages.dataset import DatasetConfig, DatasetStage
 from miai_pipeline.stages.training import TrainingStage, TrainingStageConfig
+from miai_segmentation.modality import SegmentationModalityConfig
 from miai_segmentation.three_d.models import ArchitectureConfig, UNetConfig
 from miai_segmentation.three_d.train import TrainingConfig
 from miai_transforms.config import TransformConfig, TransformSpec
 
-_ARCHITECTURE_CONFIG = ArchitectureConfig(
-    kind="unet", unet=UNetConfig(channels=(4, 8), strides=(2,), num_res_units=0)
+_ARCHITECTURE_CONFIG = SegmentationModalityConfig(
+    modality="three_d",
+    three_d=ArchitectureConfig(
+        kind="unet", unet=UNetConfig(channels=(4, 8), strides=(2,), num_res_units=0)
+    ),
 )
 
 _LOAD_TRANSFORMS = [

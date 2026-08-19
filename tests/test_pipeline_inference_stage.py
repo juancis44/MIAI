@@ -9,12 +9,18 @@ from conftest import make_synthetic_volume_pair
 from miai_pipeline.context import PipelineContext
 from miai_pipeline.exceptions import StageError
 from miai_pipeline.stages.inference import InferenceStage, InferenceStageConfig
+from miai_segmentation.modality import SegmentationInferenceConfig, SegmentationModalityConfig
 from miai_segmentation.three_d.infer import InferenceConfig
 from miai_segmentation.three_d.models import ArchitectureConfig, UNetConfig, build_unet
 from miai_transforms.config import TransformConfig, TransformSpec
 
 _UNET_CONFIG = UNetConfig(channels=(4, 8), strides=(2,), num_res_units=0)
-_ARCHITECTURE_CONFIG = ArchitectureConfig(kind="unet", unet=_UNET_CONFIG)
+_ARCHITECTURE_CONFIG = SegmentationModalityConfig(
+    modality="three_d", three_d=ArchitectureConfig(kind="unet", unet=_UNET_CONFIG)
+)
+_INFERENCE_CONFIG = SegmentationInferenceConfig(
+    three_d=InferenceConfig(roi_size=(16, 16, 16), sw_batch_size=1, device="cpu")
+)
 _IMAGE_TRANSFORMS = TransformConfig(
     transforms=[
         TransformSpec(name="load_image", params={"keys": ["image"]}),
@@ -38,7 +44,7 @@ def test_inference_stage_writes_predictions_using_context_checkpoint(tmp_path: P
             output_dir=str(tmp_path / "predictions"),
             transforms=_IMAGE_TRANSFORMS,
             architecture=_ARCHITECTURE_CONFIG,
-            inference=InferenceConfig(roi_size=(16, 16, 16), sw_batch_size=1, device="cpu"),
+            inference=_INFERENCE_CONFIG,
         )
     )
 
@@ -64,7 +70,7 @@ def test_inference_stage_explicit_checkpoint_path_overrides_context(tmp_path: Pa
             output_dir=str(tmp_path / "predictions"),
             transforms=_IMAGE_TRANSFORMS,
             architecture=_ARCHITECTURE_CONFIG,
-            inference=InferenceConfig(roi_size=(16, 16, 16), sw_batch_size=1, device="cpu"),
+            inference=_INFERENCE_CONFIG,
             checkpoint_path=str(checkpoint_path),
         )
     )

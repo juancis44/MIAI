@@ -18,20 +18,29 @@ from monai.transforms import (
 from miai_transforms.config import TransformConfig, TransformSpec
 from miai_transforms.exceptions import TransformError
 from miai_transforms.sitk_transforms import LoadImageSitkd
+from miai_transforms.slice_transforms import ExtractSliced, ExtractSliceStackd
 
 #: Maps a :class:`~miai_transforms.config.TransformSpec.name` to the
 #: transform class it builds. ``"load_image"`` uses MIAI's own
 #: SimpleITK-backed :class:`~miai_transforms.sitk_transforms.LoadImageSitkd`
 #: rather than MONAI's ``LoadImaged`` (which requires an extra reader
-#: backend such as nibabel or itk that MIAI does not depend on); the
-#: rest are MONAI's own array/tensor-only transforms, which need no
-#: reader-specific metadata to work. Spatial resampling/orientation is
-#: intentionally not offered here -- it's handled upstream by
+#: backend such as nibabel or itk that MIAI does not depend on);
+#: ``"extract_slice"``/``"extract_slice_stack"`` are MIAI's own
+#: 2D/2.5D slice-reduction transforms (see
+#: :mod:`~miai_transforms.slice_transforms`), needed only when
+#: ``miai_pipeline.stages.training.TrainingStageConfig.architecture``
+#: (or the inference/export equivalent) selects the ``"two_d"`` or
+#: ``"two_half_d"`` modality; the rest are MONAI's own array/tensor-only
+#: transforms, which need no reader-specific metadata to work. Spatial
+#: resampling/orientation is intentionally not offered here -- it's
+#: handled upstream by
 #: :class:`~miai_pipeline.stages.preprocessing.PreprocessingStage` via
 #: SimpleITK. Only the subset needed by MIAI's reference segmentation
 #: workflow is registered here; extend as new pipelines need more.
 TRANSFORM_REGISTRY: dict[str, type[Any]] = {
     "load_image": LoadImageSitkd,
+    "extract_slice": ExtractSliced,
+    "extract_slice_stack": ExtractSliceStackd,
     "scale_intensity_range": ScaleIntensityRanged,
     "crop_foreground": CropForegroundd,
     "rand_crop_by_pos_neg_label": RandCropByPosNegLabeld,

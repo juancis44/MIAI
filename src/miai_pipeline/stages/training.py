@@ -7,10 +7,11 @@ from miai_core.logging import get_logger
 from miai_datasets.config import DataLoaderConfig
 from miai_datasets.loaders import build_dataloader, build_dataset
 from miai_datasets.manifest import manifest_split_to_data_dicts
+from miai_datasets.slices import expand_to_slice_dicts
 from miai_pipeline.context import PipelineContext
 from miai_pipeline.exceptions import StageError
 from miai_pipeline.stage import PipelineStage
-from miai_segmentation.three_d.models import ArchitectureConfig, build_model
+from miai_segmentation.modality import SegmentationModalityConfig, build_model_for_modality
 from miai_segmentation.three_d.train import TrainingConfig, train_model
 from miai_transforms.compose import build_transforms
 from miai_transforms.config import TransformConfig
@@ -29,9 +30,18 @@ class TrainingStageConfig(MIAIBaseConfig):
         val_transforms: Transform pipeline applied to validation cases
             (typically the same deterministic steps as
             ``train_transforms``, without augmentation).
-        architecture: 3D model architecture selection and configuration
-            (see :class:`~miai_segmentation.three_d.models.
-            ArchitectureConfig`).
+        architecture: Segmentation modality and architecture selection
+            (see :class:`~miai_segmentation.modality.
+            SegmentationModalityConfig`). When ``architecture.modality``
+            is ``"two_d"`` or ``"two_half_d"``, each case's data dict is
+            expanded into one dict per slice (via
+            :func:`~miai_datasets.slices.expand_to_slice_dicts`) before
+            the transform pipeline runs, so ``train_transforms``/
+            ``val_transforms`` should include
+            :class:`~miai_transforms.slice_transforms.ExtractSliced`
+            (and, for ``"two_half_d"``,
+            :class:`~miai_transforms.slice_transforms.
+            ExtractSliceStackd`).
         training: Training hyperparameters.
         dataloader: Batching/loading configuration. ``shuffle`` is
             forced to ``True`` for the training split and ``False`` for
@@ -41,7 +51,7 @@ class TrainingStageConfig(MIAIBaseConfig):
     checkpoint_dir: str
     train_transforms: TransformConfig
     val_transforms: TransformConfig
-    architecture: ArchitectureConfig = ArchitectureConfig()
+    architecture: SegmentationModalityConfig = SegmentationModalityConfig()
     training: TrainingConfig = TrainingConfig()
     dataloader: DataLoaderConfig = DataLoaderConfig()
 
@@ -76,7 +86,11 @@ class TrainingStage(PipelineStage):
         if not train_entries:
             raise StageError("manifest['train'] is empty; nothing to train on.")
 
+        per_slice = self.config.architecture.modality != "three_d"
+
         train_dicts = manifest_split_to_data_dicts(train_entries)
+        if per_slice:
+            train_dicts, _ = expand_to_slice_dicts(train_dicts)
         train_dataset = build_dataset(
             train_dicts,
             build_transforms(self.config.train_transforms),
@@ -89,6 +103,8 @@ class TrainingStage(PipelineStage):
         val_loader = None
         if val_entries:
             val_dicts = manifest_split_to_data_dicts(val_entries)
+            if per_slice:
+                val_dicts, _ = expand_to_slice_dicts(val_dicts)
             val_dataset = build_dataset(
                 val_dicts,
                 build_transforms(self.config.val_transforms),
@@ -98,7 +114,7 @@ class TrainingStage(PipelineStage):
                 val_dataset, self.config.dataloader.model_copy(update={"shuffle": False})
             )
 
-        model = build_model(self.config.architecture)
+        model = build_model_for_modality(self.config.architecture)
         checkpoint_path = train_model(
             model, train_loader, val_loader, self.config.training, self.config.checkpoint_dir
         )

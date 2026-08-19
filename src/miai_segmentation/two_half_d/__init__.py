@@ -12,7 +12,7 @@ elsewhere unchanged -- see each module's docstring for why nothing here
 needs a 2.5D-specific implementation.
 """
 
-from miai_segmentation.two_half_d.infer import InferenceConfig, run_inference
+from miai_segmentation.two_half_d.infer import InferenceConfig, run_case_inference, run_inference
 from miai_segmentation.two_half_d.models import (
     ArchitectureConfig,
     StackedUNetConfig,
@@ -30,4 +30,5 @@ __all__ = [
     "train_model",
     "InferenceConfig",
     "run_inference",
+    "run_case_inference",
 ]

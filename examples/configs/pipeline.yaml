@@ -27,9 +27,15 @@
 # UNet, 5 epochs) so this config finishes in well under a minute on a
 # CPU-only machine with synthetic data -- it demonstrates the wiring
 # between stages, not a clinically useful model. Swap in a larger
-# `architecture.unet`/`training.max_epochs` for real data, or set
-# `architecture.kind: segresnet` (with a matching `architecture.segresnet`
-# block) to use SegResNet instead of UNet.
+# `architecture.three_d.unet`/`training.max_epochs` for real data, or
+# set `architecture.three_d.kind: segresnet` (with a matching
+# `architecture.three_d.segresnet` block) to use SegResNet instead of
+# UNet. `architecture.modality` selects the segmentation modality
+# itself (`three_d`, the whole-NIfTI default shown here; `two_d`, one
+# slice at a time; or `two_half_d`, a stack of adjacent slices) -- see
+# docs/user_guide.md for a 2D/2.5D example, including the
+# `extract_slice`/`extract_slice_stack` transforms those modalities
+# need in `train_transforms`/`val_transforms`/`transforms`.
 
 stages:
   - type: dicom_to_nifti
@@ -56,11 +62,13 @@ stages:
     params:
       checkpoint_dir: examples/output/checkpoints
       architecture:
-        kind: unet
-        unet:
-          channels: [16, 32, 64]
-          strides: [2, 2]
-          num_res_units: 1
+        modality: three_d
+        three_d:
+          kind: unet
+          unet:
+            channels: [16, 32, 64]
+            strides: [2, 2]
+            num_res_units: 1
       training:
         max_epochs: 5
         learning_rate: 0.001
@@ -88,17 +96,20 @@ stages:
     params:
       output_dir: examples/output/predictions
       architecture:
-        kind: unet
-        unet:
-          channels: [16, 32, 64]
-          strides: [2, 2]
-          num_res_units: 1
+        modality: three_d
+        three_d:
+          kind: unet
+          unet:
+            channels: [16, 32, 64]
+            strides: [2, 2]
+            num_res_units: 1
       inference:
-        roi_size: [32, 32, 32]
-        sw_batch_size: 1
-        overlap: 0.25
-        threshold: 0.5
-        device: cpu
+        three_d:
+          roi_size: [32, 32, 32]
+          sw_batch_size: 1
+          overlap: 0.25
+          threshold: 0.5
+          device: cpu
       transforms:
         transforms:
           - name: load_image

@@ -25,12 +25,12 @@ Each package is designed to be usable independently and to depend only on
 package should require the entire ecosystem to function.
 
 `miai-segmentation` is organized internally by imaging modality --
-`miai_segmentation.three_d` (implemented), `.two_d` and `.two_half_d`
-(planned) -- each exposing its own architecture configs and a
+`miai_segmentation.three_d`, `.two_d`, and `.two_half_d`, all
+implemented -- each exposing its own architecture configs and a
 `build_model` dispatcher (see `miai_segmentation.three_d.models`), so
 `ArchitectureConfig`/`build_model`-style YAML selection stays uniform
-across modalities as more are added. See `docs/roadmap.md`'s Phase 8 for
-progress.
+across modalities. `miai_segmentation.modality` (internal) selects
+between them for the pipeline stages. See `docs/roadmap.md`'s Phase 8.
 
 ## Repository strategy
 

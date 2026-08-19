@@ -65,11 +65,13 @@ Two examples already follow this shape:
   stage class).
 - `miai_segmentation` (root): exposes only `SegmentationError`, the one
   exception shared across every modality. Modality-specific architectures
-  live under `miai_segmentation.<modality>` -- currently
-  `miai_segmentation.three_d` (`UNetConfig`/`build_unet`,
-  `SegResNetConfig`/`build_segresnet`, `ArchitectureConfig`/`build_model`,
-  plus training/inference); `two_d` and `two_half_d` are planned
-  (`docs/roadmap.md`, Phase 8) and will follow the same shape.
+  live under `miai_segmentation.<modality>` -- `three_d`, `two_d`, and
+  `two_half_d`, each with its own `ArchitectureConfig`/`build_model`
+  plus training/inference (see `docs/roadmap.md`, Phase 8). A separate,
+  internal `miai_segmentation.modality` module (not re-exported from the
+  root `__init__.py`) selects between the three for
+  `miai_pipeline.stages.training`/`.inference`/`.export` -- it isn't a
+  modality's own public API, just cross-modality glue.
 
 A sub-namespace is documented (and therefore part of the public API surface)
 when its own `__init__.py` has a module docstring describing its role and

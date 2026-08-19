@@ -130,11 +130,13 @@ follow.
     params:
       checkpoint_dir: output/checkpoints
       architecture:
-        kind: unet          # or "segresnet"
-        unet:
-          channels: [16, 32, 64]
-          strides: [2, 2]
-          num_res_units: 1
+        modality: three_d   # or "two_d" / "two_half_d" -- see below
+        three_d:
+          kind: unet          # or "segresnet"
+          unet:
+            channels: [16, 32, 64]
+            strides: [2, 2]
+            num_res_units: 1
       training:
         max_epochs: 5
         learning_rate: 0.001
@@ -159,17 +161,19 @@ follow.
             params: { keys: [image, label] }
 ```
 
-`architecture.kind` selects the 3D segmentation architecture -- `"unet"`
-(`monai.networks.nets.UNet`) or `"segresnet"` (`monai.networks.nets.
-SegResNet`) -- with the matching `architecture.unet`/`architecture.
-segresnet` block configuring it (see
-`miai_segmentation.three_d.models.ArchitectureConfig`). This pipeline
-stage only supports the 3D modality today -- `miai_segmentation.two_d`
-and `.two_half_d` exist and are usable standalone (see the per-package
-reference table below), but aren't selectable from this YAML yet; see
-[roadmap.md](roadmap.md), Phase 8 for why. `train_transforms`/`val_transforms` are
-built from `miai_transforms.TRANSFORM_REGISTRY` -- see that module for
-every registered transform name and its params.
+`architecture.modality` selects which segmentation modality this stage
+trains -- `"three_d"` (default, whole-volume), `"two_d"` (per-slice), or
+`"two_half_d"` (stacked-adjacent-slice) -- and only the matching nested
+block (`architecture.three_d`/`.two_d`/`.two_half_d`) is actually used;
+the others can be left at their defaults. Within `architecture.three_d`,
+`kind` selects `"unet"` (`monai.networks.nets.UNet`) or `"segresnet"`
+(`monai.networks.nets.SegResNet`), with the matching `unet`/`segresnet`
+block configuring it (see
+`miai_segmentation.three_d.models.ArchitectureConfig`; `two_d`/
+`two_half_d` follow the same `kind`-plus-matching-block pattern -- see
+"2D and 2.5D segmentation" below). `train_transforms`/`val_transforms`
+are built from `miai_transforms.TRANSFORM_REGISTRY` -- see that module
+for every registered transform name and its params.
 
 ### 6. `inference`
 
@@ -178,14 +182,17 @@ every registered transform name and its params.
     params:
       output_dir: output/predictions
       architecture:
-        kind: unet
-        unet: { channels: [16, 32, 64], strides: [2, 2], num_res_units: 1 }
+        modality: three_d
+        three_d:
+          kind: unet
+          unet: { channels: [16, 32, 64], strides: [2, 2], num_res_units: 1 }
       inference:
-        roi_size: [32, 32, 32]
-        sw_batch_size: 1
-        overlap: 0.25
-        threshold: 0.5
-        device: cpu
+        three_d:
+          roi_size: [32, 32, 32]
+          sw_batch_size: 1
+          overlap: 0.25
+          threshold: 0.5
+          device: cpu
       transforms:
         transforms:
           - name: load_image
@@ -195,9 +202,73 @@ every registered transform name and its params.
 ```
 
 `architecture` here **must match what `training` used** -- it's not
-inferred from the checkpoint. Runs sliding-window inference
-(`monai.inferers.sliding_window_inference`) over the manifest's `test`
-split and writes one prediction NIfTI per case.
+inferred from the checkpoint. `inference` is keyed by modality the same
+way `architecture` is (`inference.three_d`/`.two_d`; `two_half_d` shares
+`two_d`'s 2D-window config -- see below), since a 3D sliding window's
+`roi_size` is a 3-tuple and a 2D one's is a 2-tuple. Runs sliding-window
+inference (`monai.inferers.sliding_window_inference`) over the
+manifest's `test` split and writes one prediction NIfTI per case,
+regardless of modality.
+
+#### 2D and 2.5D segmentation
+
+Set `architecture.modality` to `"two_d"` or `"two_half_d"` to train/run
+inference per-slice instead of on the whole volume -- useful when a full
+3D pass is unnecessary or too costly. Both `training` and `inference`
+need an `extract_slice` (2D) or `extract_slice_stack` (2.5D) transform
+added to their transform pipelines, since each case is expanded into one
+slice at a time before the model sees it:
+
+```yaml
+  - type: training
+    params:
+      checkpoint_dir: output/checkpoints
+      architecture:
+        modality: two_half_d
+        two_half_d:
+          kind: unet
+          unet: { channels: [16, 32, 64], strides: [2, 2], num_res_units: 1 }
+      training: { max_epochs: 5, device: cpu }
+      train_transforms:
+        transforms:
+          - name: load_image
+            params: { keys: [image, label] }
+          - name: extract_slice_stack        # image: stack of adjacent slices
+            params: { keys: [image], context_slices: 3 }
+          - name: extract_slice               # label: single center slice
+            params: { keys: [label] }
+          - name: ensure_type
+            params: { keys: [image, label] }
+      val_transforms: ...   # same shape as train_transforms, no augmentation
+
+  - type: inference
+    params:
+      output_dir: output/predictions
+      architecture: { modality: two_half_d, two_half_d: { ... } }   # must match training
+      inference:
+        two_d: { roi_size: [64, 64], sw_batch_size: 1, device: cpu }
+      transforms:
+        transforms:
+          - name: load_image
+            params: { keys: [image] }
+          - name: extract_slice_stack
+            params: { keys: [image], context_slices: 3 }
+          - name: ensure_type
+            params: { keys: [image] }
+```
+
+For `"two_d"`, use `extract_slice` (not `extract_slice_stack`) on both
+`image` and `label` -- there is no adjacent-slice stacking, so `image`
+and `label` are treated identically. `context_slices` (2.5D only) must
+match the model's `unet.in_channels`/`StackedUNetConfig.context_slices`
+-- MIAI does not auto-sync the two, so a mismatch surfaces as a shape
+error from the model's forward pass, not a config-validation error.
+`InferenceStage` internally expands each test case into slices, runs the
+model per slice, and reassembles the predictions back into one
+`(depth, height, width)` volume per case (via
+`miai_segmentation.two_d.infer.run_case_inference`) -- `prediction_paths`
+has the same one-file-per-case shape as the 3D modality, so downstream
+stages (`evaluation`, `visualization`, ...) need no changes.
 
 ### 7. `evaluation`
 
@@ -277,8 +348,8 @@ full picture):
 | `miai_transforms` | `build_transforms`, `TransformConfig`, `TRANSFORM_REGISTRY` | Config-driven MONAI + SimpleITK transform pipelines |
 | `miai_datasets` | `build_dataset`, `build_dataloader`, `manifest_split_to_data_dicts` | Manifest -> MONAI `Dataset`/`DataLoader` |
 | `miai_segmentation.three_d` | `ArchitectureConfig`, `build_model`, `train_model`, `run_inference` | Reference 3D segmentation (UNet, SegResNet) -- wired into the pipeline stages above |
-| `miai_segmentation.two_d` | `ArchitectureConfig`, `build_model`, `train_model`, `run_inference` | Per-slice 2D segmentation (UNet, AttentionUnet) -- usable standalone, not yet wired into the pipeline stages |
-| `miai_segmentation.two_half_d` | `ArchitectureConfig`, `build_model`, `train_model`, `run_inference` | 2.5D stacked-adjacent-slice segmentation (a 2D UNet over stacked slices) -- usable standalone, not yet wired into the pipeline stages |
+| `miai_segmentation.two_d` | `ArchitectureConfig`, `build_model`, `train_model`, `run_inference`, `run_case_inference` | Per-slice 2D segmentation (UNet, AttentionUnet) -- wired into the pipeline stages (`architecture.modality: two_d`) |
+| `miai_segmentation.two_half_d` | `ArchitectureConfig`, `build_model`, `train_model`, `run_inference`, `run_case_inference` | 2.5D stacked-adjacent-slice segmentation (a 2D UNet over stacked slices) -- wired into the pipeline stages (`architecture.modality: two_half_d`) |
 | `miai_evaluation` | `evaluate_predictions`, `compute_case_metrics`, `MetricsConfig` | Dice/Hausdorff/IoU/sensitivity/specificity/volume-similarity scoring |
 | `miai_registration` | `register_images`, `apply_transform`, `read_transform`/`write_transform` | Rigid/affine/bspline registration via SimpleITK |
 | `miai_reconstruction` | `simulate_kspace`, `reconstruct_from_kspace`, `build_undersampling_mask`, `reconstruction_quality` | MRI k-space simulation/reconstruction, PSNR/SSIM |

@@ -33,6 +33,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `run_inference`/`InferenceConfig` from `two_d.infer` for
   `two_half_d`), so a future refactor that shadows a re-export with a
   divergent definition fails loudly.
+- `miai_segmentation.modality` (internal, not re-exported from
+  `miai_segmentation`'s root `__init__.py`): `SegmentationModalityConfig`/
+  `build_model_for_modality` and `SegmentationInferenceConfig`/
+  `inference_config_for_modality`, which `miai_pipeline.stages.training`/
+  `.inference`/`.export` now use to select a segmentation modality
+  (`three_d`, `two_d`, or `two_half_d`) from one config field instead of
+  hardcoding `three_d`.
+- `miai_datasets.slices.expand_to_slice_dicts`: expands case-level data
+  dicts into one dict per slice (reading each volume's depth from its
+  file header only, via `SimpleITK.ImageFileReader`), bridging
+  `miai_datasets.manifest.manifest_split_to_data_dicts`'s case-level
+  output to what `two_d`/`two_half_d` need at the per-slice level.
+- `miai_transforms.slice_transforms.ExtractSliced`/`ExtractSliceStackd`
+  (registered in `TRANSFORM_REGISTRY` as `extract_slice`/
+  `extract_slice_stack`): reduce an already-loaded `(C, D, H, W)` volume
+  array to the 2D (`ExtractSliced`) or stacked-adjacent-slice
+  (`ExtractSliceStackd`) input a slice-level model expects, indexed by a
+  `"slice_index"` entry `expand_to_slice_dicts` adds to each data dict.
+- `miai_segmentation.two_d.infer.run_case_inference` (also re-exported
+  from `miai_segmentation.two_half_d.infer`): consumes a slice-level
+  `DataLoader` (`case_slice_counts` items per case) and reassembles each
+  case's per-slice predictions back into one `(D, H, W)` volume, so
+  `InferenceStage`'s one-prediction-file-per-case contract is unchanged
+  regardless of modality.
+- `TrainingStage`/`InferenceStage`/`ExportStage`: `two_d` and
+  `two_half_d` are now selectable via `architecture.modality` in
+  pipeline YAML (previously only usable standalone) -- see
+  `docs/user_guide.md`'s "2D and 2.5D segmentation" section for a full
+  example, including the `extract_slice`/`extract_slice_stack`
+  transforms those modalities need.
+- `tests/test_pipeline_two_d_modality.py`: end-to-end integration test
+  training and running inference with `architecture.modality: two_d`,
+  confirming the reassembled prediction volume matches the source
+  case's full depth/size.
 
 ### Changed
 
@@ -48,18 +82,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `TrainingStage`/`InferenceStage` already select a modality from YAML
   -- they still hardcode `three_d` (see "Not done" below).
 - `docs/roadmap.md`'s Phase 8 section: checked off `two_d`/`two_half_d`
-  and added an explicit scope-boundary note (see "Not done" below).
-
-### Not done (scoped out, tracked in `docs/roadmap.md`)
-
-- `two_d`/`two_half_d` are **not** wired into
-  `TrainingStage`/`InferenceStage`/`ExportStage` -- those stages still
-  hardcode `miai_segmentation.three_d`. Teaching the pipeline to run a
-  2D/2.5D case (per-slice extraction, stacked-slice assembly, 2D-shaped
-  transforms) needs changes to `miai_datasets`/`miai_transforms`, which
-  currently assume whole-volume NIfTI cases end to end -- a larger,
-  separate change than a config-field rename, deferred until explicitly
-  scoped.
+  pipeline wiring; marked the phase **complete** (previously
+  "architectures done, pipeline wiring pending").
+- `src/miai_segmentation/__init__.py`: docstring and `__version__`
+  (`0.3.0` -> `0.4.0`) updated -- all three modalities are now wired
+  into the pipeline stages, not just usable standalone.
+- **Breaking (pre-1.0, no deprecation cycle needed per
+  `docs/compatibility_policy.md`):** `TrainingStageConfig.architecture`,
+  `InferenceStageConfig.architecture`/`.inference`, and
+  `ExportStageConfig.architecture` now take
+  `miai_segmentation.modality.SegmentationModalityConfig`/
+  `SegmentationInferenceConfig` instead of
+  `miai_segmentation.three_d.models.ArchitectureConfig`/`.infer.
+  InferenceConfig` directly. Existing YAML configs need
+  `architecture: {kind: ..., unet: ...}` rewritten as
+  `architecture: {modality: three_d, three_d: {kind: ..., unet: ...}}`,
+  and `inference: {roi_size: ..., ...}` as
+  `inference: {three_d: {roi_size: ..., ...}}` (see
+  `examples/configs/pipeline.yaml` and `docs/user_guide.md` for the
+  updated shape).
+- `docs/architecture.md`, `docs/api_design.md`: corrected stale
+  "`two_d`/`two_half_d` planned" language now that all three modalities
+  are implemented and wired in.
 
 ## [0.16.0] - 2026-08-18
 

@@ -24,7 +24,7 @@ from miai_foundation_models.extractor import FeatureExtractor
 from miai_pipeline import Pipeline, PipelineConfig, PipelineContext
 
 _UNET_PARAMS = {"channels": [4, 8], "strides": [2], "num_res_units": 0}
-_ARCHITECTURE_PARAMS = {"kind": "unet", "unet": _UNET_PARAMS}
+_ARCHITECTURE_PARAMS = {"modality": "three_d", "three_d": {"kind": "unet", "unet": _UNET_PARAMS}}
 _DIFFUSION_UNET_PARAMS = {
     "in_channels": 1,
     "base_channels": 4,
@@ -209,9 +209,11 @@ def test_end_to_end_ml_workflow_dataset_to_evaluation(tmp_path: Path) -> None:
                         "transforms": load_image_only,
                         "architecture": _ARCHITECTURE_PARAMS,
                         "inference": {
-                            "roi_size": [16, 16, 16],
-                            "sw_batch_size": 1,
-                            "device": "cpu",
+                            "three_d": {
+                                "roi_size": [16, 16, 16],
+                                "sw_batch_size": 1,
+                                "device": "cpu",
+                            },
                         },
                     },
                 },

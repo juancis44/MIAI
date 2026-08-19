@@ -271,7 +271,7 @@ ecosystem diagram are now implemented -- none remain marked `[planned]`.
 PyPI packaging/publishing remains explicitly paused (see "Project
 infrastructure improvements" above).
 
-## Phase 8 -- `miai-segmentation` modality expansion *(architectures done, pipeline wiring pending)*
+## Phase 8 -- `miai-segmentation` modality expansion *(complete)*
 
 `miai-segmentation` originally offered a single reference architecture
 (MONAI `UNet`, implicitly 3D). Scoped after a project-state review
@@ -298,7 +298,7 @@ architecture from YAML instead of the package offering only one model.
   via `ArchitectureConfig`/`build_model`, same pattern as `three_d`.
   Training re-exports `miai_segmentation.three_d.train` unchanged (the
   loop is dimension-agnostic); inference is a 2D-window variant of
-  `three_d.infer`. **Not wired into the pipeline stages** -- see below.
+  `three_d.infer`. **Wired into the pipeline stages.**
 - [x] `miai_segmentation.two_half_d`: 2.5D (stacked-adjacent-slice)
   architecture -- `StackedUNetConfig`/`build_stacked_unet` (a 2D UNet
   whose `in_channels` is the number of stacked adjacent slices,
@@ -308,22 +308,44 @@ architecture from YAML instead of the package offering only one model.
   `miai_segmentation.three_d.train`; inference re-exports
   `miai_segmentation.two_d.infer` (spatially identical -- both are a 2D
   sliding window; only the model's channel count differs, which the
-  model itself handles). **Not wired into the pipeline stages** -- see
-  below.
+  model itself handles). **Wired into the pipeline stages.**
+- [x] Pipeline wiring: `miai_segmentation.modality` (new, internal --
+  not re-exported from `miai_segmentation`'s root `__init__.py`) adds
+  `SegmentationModalityConfig`/`build_model_for_modality` and
+  `SegmentationInferenceConfig`/`inference_config_for_modality`, the
+  "declare all three modalities' configs, select one via a `modality`
+  literal field" dispatch `TrainingStageConfig.architecture`,
+  `InferenceStageConfig.architecture`/`.inference`, and
+  `ExportStageConfig.architecture` (`miai_pipeline.stages.*`) now use
+  instead of hardcoding `miai_segmentation.three_d`. Since 2D/2.5D
+  operate per-slice rather than per-whole-volume,
+  `miai_datasets.slices.expand_to_slice_dicts` (new) expands each
+  case's data dict into one dict per slice (reading each volume's depth
+  from its file header only, via `SimpleITK.ImageFileReader`) before
+  `build_dataset` runs, and two new transforms,
+  `miai_transforms.slice_transforms.ExtractSliced`/`ExtractSliceStackd`
+  (registered in `TRANSFORM_REGISTRY` as `extract_slice`/
+  `extract_slice_stack`), reduce a loaded `(C, D, H, W)` volume array to
+  the 2D (or stacked-2D) slice a slice-level model expects.
+  `miai_segmentation.two_d.infer.run_case_inference` (also re-exported
+  from `two_half_d.infer`) consumes a slice-level `DataLoader` and
+  reassembles each case's per-slice predictions back into one `(D, H,
+  W)` volume, so `InferenceStage`'s one-prediction-file-per-case
+  contract is unchanged regardless of modality -- downstream stages
+  (evaluation, registration, visualization) need no changes. See
+  `docs/user_guide.md` for a `modality: two_d`/`two_half_d` YAML
+  example.
 
-**Scope boundary, explicit:** `two_d` and `two_half_d` are complete and
-independently usable (build a model, train it, run inference -- see
-each subpackage's docstring and `docs/user_guide.md`'s per-package
-reference table), matching the original ask to add each modality's
-representative architectures. What's still open is modality selection
-inside `TrainingStage`/`InferenceStage`/`ExportStage`: those stages
-still hardcode `miai_segmentation.three_d`, and `miai_datasets`/
-`miai_transforms` currently assume whole-volume NIfTI cases end to end
--- teaching the pipeline to run a 2D/2.5D case (per-slice extraction,
-stacked-slice assembly for 2.5D, 2D-shaped transforms) is a larger,
-separate change to the dataset/transform layer, not just a config-field
-rename like the 3D `unet:` -> `architecture:` change was. Deferred until
-that's explicitly scoped.
+**Scope boundary, explicit:** `docs/compatibility_policy.md` allows
+pre-1.0 breaking changes with just a MINOR version bump -- applied here
+to `TrainingStageConfig.architecture`/`InferenceStageConfig.architecture`/
+`InferenceStageConfig.inference`/`ExportStageConfig.architecture`'s
+field types, which now wrap the previous single-modality config in a
+`modality`-selecting one (existing YAML configs need
+`architecture: {kind: ..., unet: ...}` rewritten as
+`architecture: {modality: three_d, three_d: {kind: ..., unet: ...}}`,
+and `inference: {roi_size: ..., ...}` as
+`inference: {three_d: {roi_size: ..., ...}}`).
 
 ## Working principle
 
