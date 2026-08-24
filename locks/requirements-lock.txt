@@ -240,7 +240,7 @@ pytest-cov==7.1.0
     # via miai-core (pyproject.toml)
 python-dateutil==2.9.0.post0
     # via matplotlib
-python-discovery==1.5.0
+python-discovery==1.5.2
     # via virtualenv
 pytokens==0.4.1
     # via black
