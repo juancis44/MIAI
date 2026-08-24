@@ -103,7 +103,7 @@ monai==1.6.0
     # via miai-core (pyproject.toml)
 mpmath==1.3.0
     # via sympy
-mypy==2.3.0
+mypy==2.3.1
     # via miai-core (pyproject.toml)
 mypy-extensions==1.1.0
     # via
