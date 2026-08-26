@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `tests/test_segmentation_two_d_infer.py`: dedicated unit tests for
+  `miai_segmentation.two_d.infer` (previously only exercised indirectly
+  through the pipeline stage/end-to-end tests), raising its coverage
+  from 66% to 100%. Covers `run_inference`'s happy path plus its
+  mismatched-`source_paths` branches (loader yields more or fewer items
+  than expected), `run_case_inference`'s alignment checks
+  (`case_slice_counts`/`source_paths` length mismatch, fewer slices
+  than expected, leftover unconsumed slices) and its multi-case
+  reassembly (`source_paths` order preserved, per-case depth correct),
+  and `_predict_slice_mask`'s defensive non-tensor-model-output check.
 - `miai_segmentation.two_d`: per-slice 2D segmentation architectures --
   `UNetConfig`/`build_unet` (`spatial_dims=2`) and
   `AttentionUnetConfig`/`build_attention_unet`

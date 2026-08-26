@@ -200,6 +200,7 @@ module = [
     "test_segmentation_three_d_infer",
     "test_registration_register",
     "test_pipeline_two_d_modality",
+    "test_segmentation_two_d_infer",
 ]
 disallow_untyped_calls = false
 
