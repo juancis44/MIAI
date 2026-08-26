@@ -347,6 +347,26 @@ field types, which now wrap the previous single-modality config in a
 and `inference: {roi_size: ..., ...}` as
 `inference: {three_d: {roi_size: ..., ...}}`).
 
+## Real-data validation
+
+- [x] Validated the full `miai_pipeline` (preprocess -> split -> train ->
+  inference -> evaluate) end to end against real clinical MRI -- the
+  public ACDC (Automated Cardiac Diagnosis Challenge) cardiac cine-MRI
+  dataset -- rather than only the synthetic volumes every earlier
+  test/example used. Simplified in scope by design (binary "whole
+  heart" segmentation rather than multi-class, one frame per patient, a
+  30-patient subset -- see `docs/real_data_validation.md` for the full
+  rationale), and found + fixed two real gaps synthetic data never
+  exercised: independently-resampled image/label geometry drift, and
+  the lack of any divisible-by-stride padding for a 3D UNet on
+  arbitrarily-sized real volumes (`miai_transforms.compose
+  .TRANSFORM_REGISTRY` gained a general `"divisible_pad"` entry as a
+  result). Full writeup, including the honest result -- the pipeline
+  is proven sound, but the toy-scale 18-patient training run overfits
+  (val Dice 0.83, held-out test Dice 0.09) as expected -- in
+  `docs/real_data_validation.md`. Runnable via
+  `examples/validate_acdc.py`.
+
 ## Working principle
 
 We do not start a phase's package until the previous phase's foundations are

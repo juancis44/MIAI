@@ -7,6 +7,7 @@ from typing import Any
 from monai.transforms import (
     Compose,
     CropForegroundd,
+    DivisiblePadd,
     EnsureTyped,
     RandCropByPosNegLabeld,
     RandFlipd,
@@ -35,14 +36,24 @@ from miai_transforms.slice_transforms import ExtractSliced, ExtractSliceStackd
 #: resampling/orientation is intentionally not offered here -- it's
 #: handled upstream by
 #: :class:`~miai_pipeline.stages.preprocessing.PreprocessingStage` via
-#: SimpleITK. Only the subset needed by MIAI's reference segmentation
-#: workflow is registered here; extend as new pipelines need more.
+#: SimpleITK. ``"divisible_pad"`` (MONAI's ``DivisiblePadd``) exists
+#: because :class:`~miai_segmentation.three_d.models.UNetConfig`'s
+#: architecture needs each spatial dimension divisible by the product
+#: of its ``strides`` to reconstruct matching skip-connection shapes on
+#: the way back up -- real data resampled to a fixed physical spacing
+#: (rather than a fixed voxel grid, like the synthetic examples/tests
+#: use) ends up with an arbitrary size per case, so this is normally
+#: needed in ``train_transforms``/``val_transforms``/``transforms`` for
+#: any 3D UNet trained on real volumes. Only the subset needed by
+#: MIAI's reference segmentation workflow is registered here; extend as
+#: new pipelines need more.
 TRANSFORM_REGISTRY: dict[str, type[Any]] = {
     "load_image": LoadImageSitkd,
     "extract_slice": ExtractSliced,
     "extract_slice_stack": ExtractSliceStackd,
     "scale_intensity_range": ScaleIntensityRanged,
     "crop_foreground": CropForegroundd,
+    "divisible_pad": DivisiblePadd,
     "rand_crop_by_pos_neg_label": RandCropByPosNegLabeld,
     "rand_flip": RandFlipd,
     "rand_rotate90": RandRotate90d,

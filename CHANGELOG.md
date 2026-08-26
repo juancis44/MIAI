@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- First real-data validation (2026-08-26): `examples/validate_acdc.py`
+  runs the full `miai_pipeline` (preprocess -> split -> train ->
+  sliding-window inference -> evaluate) end to end against the public
+  ACDC cardiac cine-MRI dataset, not just synthetic volumes. Scoped to
+  binary "whole heart" segmentation (multi-class support would be a
+  separate feature addition -- `miai_segmentation` is currently
+  binary-only), one ED frame per patient (avoids patient-level split
+  leakage), and a 30-patient subset. Found and fixed two real gaps
+  synthetic data never exercised: independently-resampled image/label
+  geometry can round to different sizes by a voxel (worked around in
+  the script via resampling labels directly onto their preprocessed
+  image's grid), and a 3D UNet needs its input padded to a multiple of
+  its total downsampling stride, which nothing enforced for
+  arbitrarily-sized real volumes -- `miai_transforms.compose
+  .TRANSFORM_REGISTRY` gained a general-purpose `"divisible_pad"` entry
+  (`monai.transforms.DivisiblePadd`) for this, with its own test.
+  Full writeup, including the honest result (pipeline validated sound;
+  the toy-scale 18-patient training run itself overfits -- val Dice
+  0.83, held-out test Dice 0.09, as expected at this data scale) in the
+  new `docs/real_data_validation.md`.
 - Full-repository test coverage reaches 100% (2026-08-26), closing the
   remaining gaps from the 2026-08-26 audit: deterministic error/branch
   tests added for `miai_core.io` (malformed YAML, non-mapping JSON,

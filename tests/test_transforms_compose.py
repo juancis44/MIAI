@@ -1,6 +1,8 @@
 """Tests for miai_transforms.compose."""
 
+import numpy as np
 import pytest
+import torch
 from monai.transforms import Compose
 
 from miai_transforms.compose import TRANSFORM_REGISTRY, build_transforms
@@ -38,6 +40,24 @@ def test_build_transforms_invalid_params_raises_transform_error() -> None:
     )
     with pytest.raises(TransformError, match="Invalid parameters"):
         build_transforms(config)
+
+
+def test_divisible_pad_pads_to_a_multiple_of_k() -> None:
+    # Real volumes resampled to a fixed physical spacing (rather than a
+    # fixed voxel grid) end up an arbitrary size per case -- a 3D
+    # UNet's skip connections need each spatial dim divisible by the
+    # product of its strides, so this transform has to actually pad an
+    # odd-sized volume up to the next multiple of k, not just exist in
+    # the registry.
+    config = TransformConfig(
+        transforms=[TransformSpec(name="divisible_pad", params={"keys": ["image"], "k": 4})]
+    )
+    composed = build_transforms(config)
+
+    data = {"image": torch.as_tensor(np.zeros((1, 5, 9, 11), dtype=np.float32))}
+    padded = composed(data)
+
+    assert padded["image"].shape[1:] == (8, 12, 12)
 
 
 def test_registry_names_are_all_lowercase_snake_case() -> None:
