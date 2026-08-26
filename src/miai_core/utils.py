@@ -29,7 +29,13 @@ def set_seed(seed: int) -> None:
         import numpy as np
 
         np.random.seed(seed)
-    except ImportError:
+    except ImportError:  # pragma: no cover
+        # numpy is a hard dependency of miai-core in practice (declared
+        # in pyproject.toml and required by nearly every other module),
+        # so this fallback is not reachable in any real install; testing
+        # it would need mocking sys.modules to hide an always-present
+        # package, which isn't worth the complexity for this defensive
+        # branch.
         pass
 
 

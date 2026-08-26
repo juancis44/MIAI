@@ -47,6 +47,37 @@ def test_read_yaml_non_mapping_raises_io_error(tmp_path: Path) -> None:
         read_yaml(path)
 
 
+def test_read_yaml_malformed_syntax_raises_io_error(tmp_path: Path) -> None:
+    path = tmp_path / "malformed.yaml"
+    # An unclosed flow sequence is a genuine YAML syntax error (a
+    # yaml.YAMLError), distinct from the "valid YAML, wrong top-level
+    # type" case covered by test_read_yaml_non_mapping_raises_io_error.
+    path.write_text("key: [1, 2\n", encoding="utf-8")
+    with pytest.raises(MIAIIOError):
+        read_yaml(path)
+
+
+def test_write_yaml_unserializable_data_raises_io_error(tmp_path: Path) -> None:
+    # PyYAML's safe_dump has no representer for an arbitrary object, so
+    # this raises yaml.representer.RepresenterError (a YAMLError).
+    with pytest.raises(MIAIIOError):
+        write_yaml({"bad": object()}, tmp_path / "config.yaml")
+
+
+def test_read_json_non_mapping_raises_io_error(tmp_path: Path) -> None:
+    path = tmp_path / "list.json"
+    path.write_text("[1, 2, 3]", encoding="utf-8")
+    with pytest.raises(MIAIIOError):
+        read_json(path)
+
+
+def test_write_json_unserializable_data_raises_io_error(tmp_path: Path) -> None:
+    # json.dumps has no default encoder for an arbitrary object, so
+    # this raises TypeError.
+    with pytest.raises(MIAIIOError):
+        write_json({"bad": object()}, tmp_path / "config.json")
+
+
 def test_read_json_missing_file_raises_not_found(tmp_path: Path) -> None:
     with pytest.raises(NotFoundError):
         read_json(tmp_path / "missing.json")

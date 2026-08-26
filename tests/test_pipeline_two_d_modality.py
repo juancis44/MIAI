@@ -98,3 +98,39 @@ def test_two_d_modality_training_and_inference_reassembles_case_volume(tmp_path:
     # not just one slice -- confirms run_case_inference correctly
     # regrouped per-slice predictions back into one case volume.
     assert prediction.GetSize() == source.GetSize()
+
+
+@pytest.mark.slow
+def test_two_d_modality_training_with_val_split_expands_val_dicts_too(tmp_path: Path) -> None:
+    # test_two_d_modality_training_and_inference_reassembles_case_volume
+    # above always has an empty "val" split, so it never exercises
+    # TrainingStage's per_slice branch for val_dicts specifically (only
+    # for train_dicts) -- a non-empty val split is needed to confirm
+    # validation data is *also* expanded to slices in 2D/2.5D modality.
+    train_image, train_label = make_synthetic_volume_pair(
+        tmp_path / "train", name="train0", size=(6, 8, 8)
+    )
+    val_image, val_label = make_synthetic_volume_pair(tmp_path / "val", name="val0", size=(6, 8, 8))
+
+    ctx = PipelineContext()
+    ctx.set(
+        "manifest",
+        {
+            "train": [{"image": str(train_image), "label": str(train_label)}],
+            "val": [{"image": str(val_image), "label": str(val_label)}],
+            "test": [],
+        },
+    )
+
+    training_stage = TrainingStage(
+        TrainingStageConfig(
+            checkpoint_dir=str(tmp_path / "checkpoints"),
+            train_transforms=_TRAIN_TRANSFORMS,
+            val_transforms=_TRAIN_TRANSFORMS,
+            architecture=_ARCHITECTURE_CONFIG,
+            training=TrainingConfig(max_epochs=1, device="cpu"),
+        )
+    )
+    result = training_stage.run(ctx)
+
+    assert Path(result.require("model_checkpoint_path")).exists()

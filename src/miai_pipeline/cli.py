@@ -125,5 +125,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
+    # Untestable by definition: pytest imports this module rather than
+    # running it as __main__, so this guard can never execute under
+    # the test suite regardless of how main() itself is exercised.
     sys.exit(main())

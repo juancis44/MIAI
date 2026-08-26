@@ -9,6 +9,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Full-repository test coverage reaches 100% (2026-08-26), closing the
+  remaining gaps from the 2026-08-26 audit: deterministic error/branch
+  tests added for `miai_core.io` (malformed YAML, non-mapping JSON,
+  unserializable YAML/JSON writes), `miai_datasets.slices` (zero-depth
+  volume guard, via mocking `_read_depth` since SimpleITK cannot write a
+  genuine zero-depth NIfTI to disk), `miai_dicom.series` (files without
+  a `SeriesInstanceUID`, sort-key fallback through
+  `ImagePositionPatient` and through the final default when neither
+  `InstanceNumber` nor position is present), `miai_dicom.metadata`
+  (`_to_jsonable`'s generic `str()` fallback for non-numeric/date
+  types), `miai_dicom.io` (`write_dicom` wrapping pydicom's `save_as`
+  failure for a dataset without `file_meta`), `miai_evaluation.metrics`
+  (`_volume_similarity`'s both-empty-masks edge case),
+  `miai_pipeline.stages.preprocessing`
+  (`PreprocessingStage._normalize`'s unknown-normalization guard, via
+  `model_construct` to bypass the `Literal` type's validation),
+  `miai_pipeline.stages.training` (2D/2.5D modality now also expands
+  the validation split to slices, not just the training split),
+  `miai_pipeline.stages.dicom_to_nifti` (wrapping SimpleITK's
+  `ImageSeriesReader` `RuntimeError` for an undecodable series), and
+  `miai_segmentation.three_d.infer` (the non-tensor
+  `sliding_window_inference` output guard, and the post-loop
+  `source_paths`/`prediction_paths` length-mismatch check).
+  `miai_foundation_models.extractor`'s `token_pooling="mean"` branch and
+  `FeatureExtractor.from_pretrained` (mocking
+  `transformers.AutoModel`/`AutoImageProcessor` via `patch.object` on
+  the module resolved through `sys.modules`, since `huggingface.co` is
+  unreachable in this sandbox and a plain dotted-string `patch()` trips
+  `transformers`' lazy-loading backend check for the missing
+  `torchvision` optional dependency) are also now covered.
+  `miai_pipeline.cli`'s `if __name__ == "__main__":` guard and
+  `miai_core.utils.set_seed`'s defensive `except ImportError` around an
+  always-present `numpy` import are marked `# pragma: no cover` instead
+  (untestable-by-definition and not worth mocking `sys.modules` for,
+  respectively).
 - Test coverage for previously-thin branches, surfaced by a project
   audit (2026-08-26): `tests/test_registration_register.py` now covers
   `miai_registration.register`'s `"affine"`/`"bspline"` transform types

@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import numpy as np
+import pytest
 import SimpleITK as sitk
 
 from miai_pipeline.context import PipelineContext
@@ -107,3 +108,24 @@ def test_preprocessing_none_normalization_preserves_values(tmp_path: Path) -> No
     original = sitk.GetArrayFromImage(sitk.ReadImage(str(volume_path)))
     processed = sitk.GetArrayFromImage(sitk.ReadImage(str(result.require("preprocessed_paths")[0])))
     np.testing.assert_allclose(original, processed, rtol=1e-4)
+
+
+def test_normalize_unknown_normalization_raises() -> None:
+    # normalization is a Literal["zscore", "minmax", "none"], so this
+    # branch is unreachable through normal (Pydantic-validated)
+    # construction -- model_construct bypasses that validation to
+    # exercise the defensive fallback directly, the same way a config
+    # loaded via model_construct elsewhere in the codebase could.
+    config = PreprocessingConfig.model_construct(
+        output_dir="unused",
+        target_spacing=(1.0, 1.0, 1.0),
+        interpolation="linear",
+        normalization="not_a_real_normalization",
+    )
+    stage = PreprocessingStage(config)
+
+    array = np.zeros((4, 4, 4), dtype=np.float32)
+    image = sitk.GetImageFromArray(array)
+
+    with pytest.raises(ValueError, match="Unknown normalization"):
+        stage._normalize(image)

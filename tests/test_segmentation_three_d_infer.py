@@ -76,3 +76,59 @@ def test_run_inference_mismatched_source_paths_raises(tmp_path: Path) -> None:
             InferenceConfig(roi_size=(4, 4, 4), sw_batch_size=1, device="cpu"),
             str(tmp_path / "out"),
         )
+
+
+class _TupleOutputModel(torch.nn.Module):
+    """A model whose ``forward`` returns a tuple instead of a single
+    tensor -- exercises the defensive type check on
+    ``sliding_window_inference``'s output (see the identical test for
+    ``miai_segmentation.two_d.infer``, which confirmed empirically that
+    MONAI passes a non-tensor predictor output straight through)."""
+
+    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """Return the input twice instead of a single prediction tensor."""
+        return (x, x)
+
+
+def test_run_inference_non_tensor_model_output_raises(tmp_path: Path) -> None:
+    checkpoint_path = tmp_path / "model.pt"
+    torch.save(_TupleOutputModel().state_dict(), checkpoint_path)
+
+    class _OneItemLoader:
+        def __iter__(self) -> Iterator[dict[str, torch.Tensor]]:
+            yield {"image": torch.zeros(1, 1, 4, 4, 4)}
+
+    with pytest.raises(SegmentationError, match="Expected the model to return a single tensor"):
+        run_inference(
+            _TupleOutputModel(),
+            _OneItemLoader(),
+            ["case0.nii.gz"],
+            str(checkpoint_path),
+            InferenceConfig(roi_size=(4, 4, 4), sw_batch_size=1, device="cpu"),
+            str(tmp_path / "out"),
+        )
+
+
+def test_run_inference_fewer_items_than_source_paths_raises(tmp_path: Path) -> None:
+    # An empty loader against a non-empty source_paths never enters the
+    # per-batch loop (so the loop-internal idx >= len(source_paths)
+    # check never fires), which is what's needed to reach the post-loop
+    # length-mismatch check instead -- mirrors the identical test for
+    # miai_segmentation.two_d.infer.
+    model = build_unet(_UNET_CONFIG)
+    checkpoint_path = tmp_path / "model.pt"
+    torch.save(model.state_dict(), checkpoint_path)
+
+    class _EmptyLoader:
+        def __iter__(self) -> Iterator[dict[str, torch.Tensor]]:
+            return iter(())
+
+    with pytest.raises(SegmentationError, match="yielded 0 items but source_paths provided"):
+        run_inference(
+            build_unet(_UNET_CONFIG),
+            _EmptyLoader(),
+            ["case0.nii.gz"],
+            str(checkpoint_path),
+            InferenceConfig(roi_size=(4, 4, 4), sw_batch_size=1, device="cpu"),
+            str(tmp_path / "out"),
+        )

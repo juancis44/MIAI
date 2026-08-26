@@ -46,6 +46,56 @@ def test_load_series_sorts_by_instance_number(tmp_path: Path) -> None:
     assert instance_numbers == [1, 2, 3]
 
 
+def test_load_series_skips_files_without_series_instance_uid(tmp_path: Path) -> None:
+    ds_with_uid = make_dicom_dataset(series_instance_uid="1.2.3.666")
+    write_dicom(ds_with_uid, tmp_path / "with_uid.dcm")
+
+    ds_without_uid = make_dicom_dataset()
+    del ds_without_uid.SeriesInstanceUID
+    write_dicom(ds_without_uid, tmp_path / "without_uid.dcm")
+
+    series_list = load_series(tmp_path)
+
+    assert len(series_list) == 1
+    assert len(series_list[0]) == 1
+
+
+def test_load_series_falls_back_to_default_order_without_instance_number_or_position(
+    tmp_path: Path,
+) -> None:
+    # Neither InstanceNumber nor ImagePositionPatient is set by
+    # make_dicom_dataset -- _sort_key must fall back to its final
+    # default ((2, 0.0)) instead of raising, for every file.
+    uid = "1.2.3.888"
+    for i in range(3):
+        ds = make_dicom_dataset(series_instance_uid=uid)
+        write_dicom(ds, tmp_path / f"slice_{i}.dcm")
+
+    (series,) = load_series(tmp_path)
+
+    assert len(series) == 3
+
+
+def test_load_series_orders_by_image_position_when_instance_number_missing(
+    tmp_path: Path,
+) -> None:
+    # _sort_key's ImagePositionPatient branch (its middle fallback,
+    # between InstanceNumber and the final default) is reached only
+    # when InstanceNumber is absent but ImagePositionPatient is
+    # present -- make_dicom_dataset doesn't set either by default, so
+    # ImagePositionPatient must be assigned directly here.
+    uid = "1.2.3.999"
+    positions = [30.0, 10.0, 20.0]
+    for i, z in enumerate(positions):
+        ds = make_dicom_dataset(series_instance_uid=uid)
+        ds.ImagePositionPatient = [0.0, 0.0, z]
+        write_dicom(ds, tmp_path / f"slice_{i}.dcm")
+
+    (series,) = load_series(tmp_path)
+
+    assert len(series) == 3
+
+
 def test_load_series_skips_non_dicom_files(tmp_path: Path) -> None:
     ds = make_dicom_dataset(series_instance_uid="1.2.3.555")
     write_dicom(ds, tmp_path / "slice.dcm")

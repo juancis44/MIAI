@@ -98,6 +98,21 @@ def test_volume_similarity_penalizes_size_mismatch_not_just_overlap() -> None:
     assert metrics["volume_similarity"] == pytest.approx(1.0 - abs(8 - 4) / (8 + 4))
 
 
+def test_volume_similarity_both_empty_returns_one() -> None:
+    # Neither mask has any foreground voxels -- there's no volume to
+    # disagree on, so this hits _volume_similarity's denominator==0.0
+    # branch and returns the defined default (1.0) instead of dividing
+    # by zero.
+    prediction = torch.zeros(1, 1, 8, 8, 8)
+    ground_truth = torch.zeros(1, 1, 8, 8, 8)
+
+    metrics = compute_case_metrics(
+        prediction, ground_truth, MetricsConfig(include_dice=False, include_volume_similarity=True)
+    )
+
+    assert metrics["volume_similarity"] == pytest.approx(1.0)
+
+
 def test_compute_case_metrics_new_metrics_off_by_default() -> None:
     mask = _mask(foreground=True)
     metrics = compute_case_metrics(mask, mask.clone(), MetricsConfig())

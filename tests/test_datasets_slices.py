@@ -1,6 +1,7 @@
 """Tests for miai_datasets.slices.expand_to_slice_dicts."""
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -45,6 +46,19 @@ def test_empty_data_dicts_raises(tmp_path: Path) -> None:
 def test_missing_image_key_raises(tmp_path: Path) -> None:
     with pytest.raises(DatasetBuildError, match="image"):
         expand_to_slice_dicts([{"label": "a_seg.nii.gz"}])
+
+
+def test_zero_depth_volume_raises(tmp_path: Path) -> None:
+    image_path, _ = make_synthetic_volume_pair(tmp_path, size=(3, 4, 3))
+
+    # SimpleITK refuses to write a genuinely zero-depth NIfTI file to
+    # disk, so the only way to exercise this guard is to make
+    # _read_depth (which normally reads the real header) report 0.
+    with (
+        patch("miai_datasets.slices._read_depth", return_value=0),
+        pytest.raises(DatasetBuildError, match="zero slices"),
+    ):
+        expand_to_slice_dicts([{"image": str(image_path)}])
 
 
 def test_non_3d_volume_raises(tmp_path: Path) -> None:

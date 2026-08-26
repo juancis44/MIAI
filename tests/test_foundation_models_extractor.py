@@ -9,7 +9,9 @@ used here.
 
 from __future__ import annotations
 
+import sys
 from typing import Any
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -94,6 +96,67 @@ def test_max_slice_pooling_differs_from_mean_for_varying_slices() -> None:
     max_embedding = max_extractor.extract_volume_embedding(volume)
 
     assert not torch.allclose(mean_embedding, max_embedding)
+
+
+def test_mean_token_pooling_averages_all_tokens() -> None:
+    # token_pooling="mean" is a distinct branch from "cls" (default) --
+    # covered by the other token-pooling tests above -- so needs its
+    # own test to be exercised at all.
+    config = FeatureExtractorConfig(token_pooling="mean")
+    extractor = FeatureExtractor(_FakeModel(), _FakeProcessor(), config)
+    volume = np.random.default_rng(2).random((2, 4, 4)).astype(np.float32)
+
+    embedding = extractor.extract_volume_embedding(volume)
+
+    assert embedding.shape == (_HIDDEN_SIZE,)
+
+
+def test_from_pretrained_downloads_model_and_processor_by_model_id() -> None:
+    # Hitting the real Hugging Face Hub is neither fast nor reliable in
+    # a sandboxed CI environment (and this repo's own sandbox has no
+    # network access to huggingface.co), so this mocks
+    # transformers.AutoModel/AutoImageProcessor to verify from_pretrained's
+    # wiring -- it downloads by config.model_id and wraps the results in
+    # a FeatureExtractor -- without an actual network call.
+    #
+    # transformers.AutoModel/AutoImageProcessor are lazily-loaded classes
+    # whose attribute access triggers a backend availability check
+    # (AutoImageProcessor requires torchvision, which isn't installed
+    # here). patch()'s dotted-string form does a real getattr on the
+    # class before installing the mock, which trips that check even
+    # though the intent is only to replace from_pretrained. Patching the
+    # class object itself in the transformers module namespace avoids
+    # touching the real class's attributes at all.
+    config = FeatureExtractorConfig(model_id="some-org/some-model", device="cpu")
+    fake_model = _FakeModel()
+    fake_processor = _FakeProcessor()
+
+    fake_model_cls = MagicMock()
+    fake_model_cls.from_pretrained.return_value = fake_model
+    fake_processor_cls = MagicMock()
+    fake_processor_cls.from_pretrained.return_value = fake_processor
+
+    # Look up the module via sys.modules rather than a module-level
+    # `import transformers` binding: transformers/__init__.py replaces
+    # its own sys.modules entry with a lazy-loading wrapper as part of
+    # its first import, and depending on unrelated test collection
+    # order that swap can happen *after* another module's `import
+    # transformers` already captured the pre-swap object. Patching that
+    # stale reference wouldn't affect the object extractor.py's
+    # `from transformers import ...` actually resolves through.
+    transformers_module = sys.modules["transformers"]
+
+    with (
+        patch.object(transformers_module, "AutoModel", fake_model_cls),
+        patch.object(transformers_module, "AutoImageProcessor", fake_processor_cls),
+    ):
+        extractor = FeatureExtractor.from_pretrained(config)
+
+    fake_model_cls.from_pretrained.assert_called_once_with("some-org/some-model")
+    fake_processor_cls.from_pretrained.assert_called_once_with("some-org/some-model")
+    assert extractor.model is fake_model
+    assert extractor.processor is fake_processor
+    assert extractor.config is config
 
 
 def test_mean_token_pooling_used_when_pooler_output_missing() -> None:

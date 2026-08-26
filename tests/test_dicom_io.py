@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+import pydicom
 import pytest
 
 from conftest import make_dicom_dataset
@@ -28,6 +29,17 @@ def test_write_dicom_creates_parent_directories(tmp_path: Path) -> None:
     write_dicom(dataset, path)
 
     assert path.exists()
+
+
+def test_write_dicom_without_file_meta_raises_invalid_dicom_error(tmp_path: Path) -> None:
+    # A bare Dataset has no file_meta (no Transfer Syntax UID), so
+    # pydicom can't determine how to encode it -- save_as raises
+    # ValueError, which write_dicom wraps as InvalidDicomFileError.
+    dataset = pydicom.Dataset()
+    dataset.PatientID = "PAT001"
+
+    with pytest.raises(InvalidDicomFileError):
+        write_dicom(dataset, tmp_path / "bad.dcm")
 
 
 def test_read_dicom_missing_file_raises_not_found(tmp_path: Path) -> None:
