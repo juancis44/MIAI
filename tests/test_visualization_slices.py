@@ -35,6 +35,14 @@ def test_plot_slice_with_mask_writes_file(tmp_path: Path) -> None:
     assert out_path.exists()
 
 
+def test_plot_slice_with_title(tmp_path: Path) -> None:
+    volume = np.random.default_rng(0).random((8, 8, 8)).astype(np.float32)
+
+    out_path = plot_slice(volume, str(tmp_path / "slice.png"), PlotSliceConfig(title="Case 0"))
+
+    assert out_path.exists()
+
+
 def test_plot_slice_mask_shape_mismatch_raises(tmp_path: Path) -> None:
     volume = np.zeros((8, 8, 8), dtype=np.float32)
     mask = np.zeros((4, 4, 4), dtype=np.uint8)
@@ -50,6 +58,27 @@ def test_plot_montage_writes_file(tmp_path: Path) -> None:
 
     assert out_path.exists()
     assert out_path.stat().st_size > 0
+
+
+def test_plot_montage_with_leftover_panels_and_title(tmp_path: Path) -> None:
+    # num_slices=5 -> a 3x2 grid (6 panels), leaving 1 unused panel hidden --
+    # also exercises the title branch.
+    volume = np.random.default_rng(0).random((8, 8, 8)).astype(np.float32)
+
+    out_path = plot_montage(
+        volume,
+        str(tmp_path / "montage.png"),
+        PlotMontageConfig(num_slices=5, title="Case 0 montage"),
+    )
+
+    assert out_path.exists()
+
+
+def test_plot_montage_zero_size_axis_raises(tmp_path: Path) -> None:
+    volume = np.zeros((8, 0, 8), dtype=np.float32)
+
+    with pytest.raises(VisualizationError):
+        plot_montage(volume, str(tmp_path / "montage.png"), PlotMontageConfig(axis=1))
 
 
 def test_plot_montage_num_slices_less_than_one_raises(tmp_path: Path) -> None:

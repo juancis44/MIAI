@@ -55,6 +55,32 @@ def test_register_images_output_matches_fixed_grid() -> None:
     assert registered.GetSpacing() == fixed.GetSpacing()
 
 
+@pytest.mark.parametrize("transform_type", ["affine", "bspline"])
+def test_register_images_runs_with_each_transform_type(transform_type: str) -> None:
+    fixed, _ = _cube_image(shift=(0, 0, 0))
+    moving, _ = _cube_image(shift=(2, 0, 0))
+
+    config = _FAST_CONFIG.model_copy(
+        update={"transform_type": transform_type, "number_of_iterations": 5}
+    )
+    transform, registered = register_images(fixed, moving, config)
+
+    assert transform is not None
+    assert registered.GetSize() == fixed.GetSize()
+
+
+@pytest.mark.parametrize("metric", ["mattes_mutual_information", "correlation"])
+def test_register_images_runs_with_each_metric(metric: str) -> None:
+    fixed, _ = _cube_image(shift=(0, 0, 0))
+    moving, _ = _cube_image(shift=(2, 0, 0))
+
+    config = _FAST_CONFIG.model_copy(update={"metric": metric, "number_of_iterations": 5})
+    transform, registered = register_images(fixed, moving, config)
+
+    assert transform is not None
+    assert registered.GetSize() == fixed.GetSize()
+
+
 def test_register_images_unknown_transform_type_raises() -> None:
     fixed, _ = _cube_image()
     moving, _ = _cube_image(shift=(1, 0, 0))

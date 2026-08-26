@@ -31,6 +31,18 @@ def test_plot_training_curves_writes_file(tmp_path: Path) -> None:
     assert out_path.stat().st_size > 0
 
 
+def test_plot_training_curves_with_title(tmp_path: Path) -> None:
+    log_path = _write_log(tmp_path / "log.csv")
+
+    out_path = plot_training_curves(
+        str(log_path),
+        str(tmp_path / "curves.png"),
+        PlotTrainingCurvesConfig(title="Training progress"),
+    )
+
+    assert out_path.exists()
+
+
 def test_plot_training_curves_selected_metric_only(tmp_path: Path) -> None:
     log_path = _write_log(tmp_path / "log.csv")
 

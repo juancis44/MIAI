@@ -29,6 +29,24 @@ def test_plot_metric_summary_box_writes_file(tmp_path: Path) -> None:
     assert out_path.exists()
 
 
+def test_plot_metric_summary_with_title(tmp_path: Path) -> None:
+    values = {"case_0": 0.9, "case_1": 0.85}
+
+    out_path = plot_metric_summary(
+        values, str(tmp_path / "summary.png"), PlotMetricSummaryConfig(title="Dice by case")
+    )
+
+    assert out_path.exists()
+
+
+def test_plot_metric_summary_rotates_labels_when_more_than_six(tmp_path: Path) -> None:
+    values = {f"case_{i}": 0.8 + i * 0.01 for i in range(8)}
+
+    out_path = plot_metric_summary(values, str(tmp_path / "summary.png"))
+
+    assert out_path.exists()
+
+
 def test_plot_metric_summary_empty_raises(tmp_path: Path) -> None:
     with pytest.raises(VisualizationError):
         plot_metric_summary({}, str(tmp_path / "summary.png"))

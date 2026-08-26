@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Test coverage for previously-thin branches, surfaced by a project
+  audit (2026-08-26): `tests/test_registration_register.py` now covers
+  `miai_registration.register`'s `"affine"`/`"bspline"` transform types
+  and `"mattes_mutual_information"`/`"correlation"` metrics (previously
+  only `"rigid"`/`"mean_squares"` ran, plus the unknown-value error
+  paths); `tests/test_visualization_curves.py`,
+  `test_visualization_metrics.py`, and `test_visualization_slices.py`
+  now cover the `title`-set branches, `plot_metric_summary`'s
+  >6-label tick-rotation branch, and `plot_montage`'s zero-size-axis
+  and leftover-panel (non-square slice count) branches. All four
+  modules reach 100% coverage (previously 89%-98%).
 - `tests/test_segmentation_two_d_infer.py`: dedicated unit tests for
   `miai_segmentation.two_d.infer` (previously only exercised indirectly
   through the pipeline stage/end-to-end tests), raising its coverage
@@ -80,6 +91,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- `docs/roadmap.md`'s Phase 6 heading: `*(current)*` -> `*(complete)*`
+  -- stale marker left over from before Phases 7-8 shipped.
 - `README.md`'s "Installation" section: now leads with `pip install
   pymiai` (the first PyPI release, `v0.16.0`, is live), with the
   from-source instructions kept as a secondary "for development" path.

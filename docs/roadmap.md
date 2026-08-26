@@ -115,7 +115,7 @@ Closes out the `evaluation` stage left open in Phase 3/4:
 
 Phase 5 is now complete.
 
-## Phase 6 — Further ecosystem packages *(current)*
+## Phase 6 — Further ecosystem packages *(complete)*
 
 - [x] Reconstruction
   - [x] `miai_reconstruction.kspace`: `simulate_kspace` / `reconstruct_from_kspace` --
