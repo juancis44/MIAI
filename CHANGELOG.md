@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Third ACDC validation iteration (2026-08-27): `examples/validate_acdc.py`
+  switches from a 3D UNet to MIAI's per-slice 2D UNet
+  (`architecture.modality = "two_d"`, already wired into every pipeline
+  stage since Phase 8) -- prompted by the observation that ACDC's
+  cine-MRI is acquired as a stack of independent 2D short-axis slices
+  (in-plane ~1.5-2mm, through-plane ~6-10mm, only 6-15 slices per case),
+  not a true volumetric scan, so a 3D UNet imposes a spatial
+  relationship between slices the acquisition never has. No new data or
+  staging needed: `expand_to_slice_dicts` turns each already-on-disk
+  ED/ES volume into one training example per slice (~700+ 2D examples
+  from the same 60 training volumes), and
+  `miai_segmentation.two_d.infer.run_case_inference` reassembles slice
+  predictions back into one volume per case for evaluation. Same
+  architecture depth, patient-level split, augmentation, and epoch
+  budget as the second iteration -- only the modality changed. Result:
+  mean test Dice jumped from ~0.08 (both prior 3D iterations) to
+  **0.71**, with specificity reaching 0.99 (versus ~0.5-0.6 before) --
+  the first ACDC iteration where the model actually generalizes, not
+  just validates the pipeline's wiring. Confirms matching the model's
+  inductive bias to the data's real acquisition geometry mattered far
+  more than the second iteration's combined data/augmentation/capacity
+  levers. Full writeup in `docs/real_data_validation.md`.
 - Second ACDC validation iteration (2026-08-27): `examples/validate_acdc.py`
   now uses both ED and ES frames per patient (50 patients, up to 100
   cases, up from 30 ED-only), a **patient-level** train/val/test split

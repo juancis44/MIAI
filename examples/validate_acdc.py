@@ -57,6 +57,28 @@ script builds the manifest itself: patients (not cases) are shuffled
 and partitioned by the same fractions, then every case belonging to a
 chosen patient goes to that patient's split.
 
+**Third iteration: 2D per-slice, not 3D.** ACDC's cine-MRI is acquired
+as a stack of independent 2D short-axis slices (each its own breath-hold
+acquisition), not a true volumetric scan -- in-plane resolution is
+~1.5-2mm but through-plane spacing is ~6-10mm with only 6-15 slices per
+volume. The first two iterations ran a 3D UNet over this anyway,
+imposing a spatial relationship between slices the acquisition never
+actually has, and treating each ED/ES frame as a single training
+example (at most ~100 volumes) rather than each *slice* as one. This
+iteration switches ``architecture.modality`` to ``"two_d"``: MIAI's
+existing per-slice UNet, wired into every pipeline stage since Phase 8
+(``expand_to_slice_dicts`` turns each ED/ES volume into one training
+example per slice at train time; :func:`~miai_segmentation.two_d.infer
+.run_case_inference` reassembles slice predictions back into one
+volume per case at inference time, so :class:`~miai_pipeline.stages.
+evaluation.EvaluationStage` still scores whole cases against ground
+truth unchanged). Both the slice axis (Z, ~6-15 per case) and the time
+axis (the two annotated cardiac phases, ED and ES, already loaded per
+patient since the second iteration) now multiply out into independent
+2D training examples -- roughly 60 volumes x ~12 slices ~= 700+
+examples, versus 60 in the 3D runs, without staging a single extra
+file. See ``docs/real_data_validation.md`` for the result.
+
 Run:
     python examples/validate_acdc.py --data-dir /path/to/ACDC \\
         --output-dir examples/output/acdc_validation
@@ -80,9 +102,9 @@ from miai_pipeline.stages.inference import InferenceStage, InferenceStageConfig
 from miai_pipeline.stages.preprocessing import PreprocessingConfig, PreprocessingStage
 from miai_pipeline.stages.training import TrainingStage, TrainingStageConfig
 from miai_segmentation.modality import SegmentationInferenceConfig, SegmentationModalityConfig
-from miai_segmentation.three_d.infer import InferenceConfig
-from miai_segmentation.three_d.models import ArchitectureConfig, UNetConfig
 from miai_segmentation.three_d.train import TrainingConfig
+from miai_segmentation.two_d.infer import InferenceConfig
+from miai_segmentation.two_d.models import ArchitectureConfig, UNetConfig
 from miai_transforms.config import TransformConfig, TransformSpec
 
 logger = get_logger(__name__)
@@ -101,29 +123,36 @@ DEFAULT_PATIENTS = [f"patient{i:03d}" for i in range(1, 149, 3)]
 #: detail survives resampling, at the cost of more voxels per case.
 _TARGET_SPACING = (2.0, 2.0, 6.0)
 
-#: Matches _ARCHITECTURE's three stride-2 downsamples (2 * 2 * 2 = 8,
-#: up from the first iteration's 4) -- real volumes resampled to a
-#: fixed physical spacing (rather than a fixed voxel grid, unlike the
-#: synthetic examples/tests) land on an arbitrary size per case, which
-#: breaks the UNet's skip connections unless every case is padded up
-#: to a multiple of this first. Done once on disk (see
-#: ``_pad_to_divisible``) rather than via a ``"divisible_pad"``
-#: transform in train/val/test transforms: a transform-only pad would
-#: apply to what the model sees during inference but not to the
-#: *unpadded* preprocessed label
+#: Matches _ARCHITECTURE's three stride-2 downsamples (2 * 2 * 2 = 8) --
+#: real volumes resampled to a fixed physical spacing (rather than a
+#: fixed voxel grid, unlike the synthetic examples/tests) land on an
+#: arbitrary size per case, which breaks the UNet's skip connections
+#: unless every case is padded up to a multiple of this first (in-plane
+#: (X, Y) is what matters for the 2D per-slice network this iteration
+#: uses; padding Z too is harmless -- it just adds a few background-only
+#: slices). Done once on disk (see ``_pad_to_divisible``) rather than
+#: via a ``"divisible_pad"`` transform in train/val/test transforms: a
+#: transform-only pad would apply to what the model sees during
+#: inference but not to the *unpadded* preprocessed label
 #: :class:`~miai_pipeline.stages.evaluation.EvaluationStage` reads
 #: straight off disk, causing the same prediction/ground-truth
 #: shape mismatch worked around in ``_resample_labels_to_reference``.
 _DIVISIBLE_K = 8
 
-#: Random rotation and intensity shift added on top of the first
-#: iteration's single random flip -- more varied augmentation to fight
-#: the small-sample overfitting that iteration showed directly
-#: (predicting ~50% foreground everywhere instead of the heart's
-#: actual ~5.6% shape).
+#: Random rotation and intensity shift added on top of the second
+#: iteration's random flip -- more varied augmentation to fight the
+#: small-sample overfitting the first two iterations showed directly.
+#: ``extract_slice`` (:class:`~miai_transforms.slice_transforms
+#: .ExtractSliced`) runs right after loading, before any augmentation,
+#: so ``rand_flip``/``rand_rotate90`` operate on the already-2D
+#: ``(C, H, W)`` slice -- their axis-0/1 arguments mean image rows/
+#: columns here, not depth (as they would on the whole-volume ``(C, D,
+#: H, W)`` array the first two, 3D-modality iterations flipped/rotated
+#: instead).
 _TRAIN_TRANSFORMS = TransformConfig(
     transforms=[
         TransformSpec(name="load_image", params={"keys": ["image", "label"]}),
+        TransformSpec(name="extract_slice", params={"keys": ["image", "label"]}),
         TransformSpec(
             name="rand_flip", params={"keys": ["image", "label"], "prob": 0.5, "spatial_axis": 0}
         ),
@@ -140,47 +169,49 @@ _TRAIN_TRANSFORMS = TransformConfig(
 _EVAL_TRANSFORMS = TransformConfig(
     transforms=[
         TransformSpec(name="load_image", params={"keys": ["image", "label"]}),
+        TransformSpec(name="extract_slice", params={"keys": ["image", "label"]}),
         TransformSpec(name="ensure_type", params={"keys": ["image", "label"]}),
     ]
 )
 _TEST_TRANSFORMS = TransformConfig(
     transforms=[
         TransformSpec(name="load_image", params={"keys": ["image"]}),
+        TransformSpec(name="extract_slice", params={"keys": ["image"]}),
         TransformSpec(name="ensure_type", params={"keys": ["image"]}),
     ]
 )
 
-#: A third stride-2 level (16->32->64->128 channels) and 2 residual
-#: units per level, up from the first iteration's 2-level, 1-residual-
-#: unit network -- more capacity to actually learn heart shape rather
-#: than a coarse "about half the volume" average.
+#: 2D per-slice UNet (see the module docstring's "Third iteration"
+#: section for why 2D, not 3D, is the right fit for this data): a
+#: third stride-2 level (16->32->64->128 channels) and 2 residual units
+#: per level, the same depth/width as the second iteration's 3D
+#: network, just at ``spatial_dims=2``.
 _ARCHITECTURE = SegmentationModalityConfig(
-    modality="three_d",
-    three_d=ArchitectureConfig(
+    modality="two_d",
+    two_d=ArchitectureConfig(
         kind="unet",
         unet=UNetConfig(channels=(16, 32, 64, 128), strides=(2, 2, 2), num_res_units=2),
     ),
 )
 
-#: Large enough to cover every padded case in one sliding-window pass
-#: (the largest padded case in this dataset/spacing combination is
-#: (216, 240, 24); this is comfortably above that, and a multiple of
-#: 8 to match ``_DIVISIBLE_K``). This isn't a tuning choice -- it's a
-#: correctness requirement: :func:`~miai_segmentation.three_d.train.
-#: train_model`'s validation loop scores each case with a single
-#: full-volume forward pass, so :class:`~miai_pipeline.stages.
-#: inference.InferenceStage`'s sliding-window inference must see the
-#: same full volume per window too, or its test-time predictions come
-#: from a systematically different computation than what validation
-#: measured. The first run of this second iteration used a much
-#: smaller (96, 96, 8) ROI (sized for the first iteration's coarser
-#: spacing, before this iteration's finer spacing and deeper network
-#: made cases taller in z) -- windowing a 24-slice case into 8-slice
-#: chunks starved the model of z-context it had during validation and
-#: cut mean test Dice roughly in half (0.040 vs 0.084 with this fix),
-#: on top of whatever real overfitting was already there. See
-#: ``docs/real_data_validation.md`` for the measured before/after.
-_INFERENCE_ROI_SIZE = (256, 256, 32)
+#: 2D sliding-window ROI (in-plane only -- the 2D modality's inference
+#: reassembles predictions slice by slice, see
+#: :func:`~miai_segmentation.two_d.infer.run_case_inference`). Large
+#: enough to cover every padded case's (X, Y) extent in one window (the
+#: largest padded case in this dataset/spacing combination is
+#: (216, 240, ...); this is comfortably above that, and a multiple of 8
+#: to match ``_DIVISIBLE_K``). This isn't just a tuning choice -- it's
+#: the same correctness requirement the second, 3D-modality iteration
+#: found the hard way (see ``docs/real_data_validation.md``): the
+#: per-slice validation loop scores each slice with a single
+#: full-slice forward pass (no windowing at all, since
+#: :class:`~miai_transforms.slice_transforms.ExtractSliced` already
+#: reduced each item to one full 2D slice before it ever reaches the
+#: model), so :class:`~miai_pipeline.stages.inference.InferenceStage`'s
+#: sliding-window inference must see the same full slice per window
+#: too, or test-time predictions come from a systematically different
+#: computation than what validation measured.
+_INFERENCE_ROI_SIZE = (256, 256)
 
 
 def _all_frame_paths(data_dir: Path, patient: str) -> list[tuple[Path, Path]]:
@@ -454,8 +485,8 @@ def run_validation(data_dir: Path, output_dir: Path, max_epochs: int) -> dict[st
             transforms=_TEST_TRANSFORMS,
             architecture=_ARCHITECTURE,
             inference=SegmentationInferenceConfig(
-                three_d=InferenceConfig(
-                    roi_size=_INFERENCE_ROI_SIZE, sw_batch_size=1, overlap=0.25, device="cpu"
+                two_d=InferenceConfig(
+                    roi_size=_INFERENCE_ROI_SIZE, sw_batch_size=4, overlap=0.25, device="cpu"
                 )
             ),
         )

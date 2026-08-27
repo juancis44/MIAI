@@ -191,13 +191,69 @@ neither is currently exposed by `TrainingConfig`), and/or multi-class
 labels giving the loss more structured signal per voxel -- none of
 which this iteration covered.
 
+## Third iteration: 2D per-slice, not 3D
+
+The first two iterations both ran a 3D UNet, and both landed around
+test Dice 0.08-0.09 no matter what else changed. The reason turned out
+to be a modeling choice, not a data or training problem: ACDC's
+cine-MRI is acquired as a stack of independent 2D short-axis slices
+(each its own breath-hold acquisition), not a true volumetric scan --
+in-plane resolution is ~1.5-2mm but through-plane spacing is ~6-10mm
+with only 6-15 slices per case. Feeding that into a 3D UNet imposes a
+spatial relationship between slices the acquisition never actually
+has, and treats each ED/ES frame as one training example (at most ~100
+volumes across the whole run) rather than each *slice* as one.
+
+This iteration switches `architecture.modality` to `"two_d"` --
+MIAI's per-slice UNet, wired into every pipeline stage since Phase 8.
+No new data, no new staging: `expand_to_slice_dicts` turns each ED/ES
+volume already on disk into one training example per slice, and
+`miai_segmentation.two_d.infer.run_case_inference` reassembles slice
+predictions back into one volume per case at inference time, so
+evaluation still scores whole cases against ground truth, unchanged.
+Both axes the user pointed at -- slices (Z) and time (the two
+annotated cardiac phases, ED and ES) -- now multiply out into
+independent 2D training examples: the same 60 training volumes become
+roughly 700+ 2D slices per epoch.
+
+Config: same 3-level UNet (16, 32, 64, 128 channels, 2 res units) at
+`spatial_dims=2`, same patient-level 60/20/20 split, same augmentation
+(flip + rotate90 + intensity shift, now applied to the already-2D
+slice), Adam `lr=1e-3`, 40 epochs, CPU-only. Inference: a 2D
+sliding-window `roi_size=(256, 256)`, large enough to cover any slice
+in one window -- the same full-frame-per-forward-pass correctness
+requirement the second iteration's `roi_size` bug taught (see above),
+just in 2D this time.
+
+| Split | Cases | Dice |
+|---|---|---|
+| Validation (best epoch, 40) | 20 | 0.88 |
+| Held-out test | 20 | **0.71** |
+
+**This is the first iteration where the model actually generalizes.**
+Test Dice jumped from ~0.08 (both 3D iterations) to **0.71** -- roughly
+9x -- with the same data, the same patient-level split, and the same
+epoch budget as the second iteration, changed only in how the volume
+is fed to the network. Mean specificity is 0.994 (near-perfect
+background rejection, unlike the 3D runs' near-chance ~0.5-0.6) and
+mean sensitivity is 0.73. Per-case test Dice ranges 0.35-0.89 -- still
+real variance case to case (patient088's two frames are the weak
+spot, Dice ~0.36; patient076's are the strongest, ~0.80-0.89) -- but
+every case beats the *best* single case from either 3D iteration.
+The val/test gap (0.88 vs 0.71) is now in a normal, expected range for
+this data scale, rather than the near-total collapse the 3D iterations
+showed. **The practical lesson: matching the model's inductive bias to
+how the data was actually acquired mattered far more here than any of
+the second iteration's levers (more data, augmentation, a deeper
+network, finer spacing) combined.**
+
 ## Reproducing this
 
 ```bash
 python examples/validate_acdc.py \
     --data-dir /path/to/ACDC \
     --output-dir examples/output/acdc_validation \
-    --max-epochs 60
+    --max-epochs 40
 ```
 
 Outputs land under `--output-dir` (git-ignored, like every other

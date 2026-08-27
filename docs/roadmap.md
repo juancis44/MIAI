@@ -375,6 +375,15 @@ and `inference: {roi_size: ..., ...}` as
   0.088, despite 3.3x the data and a leak-proof split -- val Dice
   reaching 0.72 shows the bottleneck is training data volume, not
   model capacity. See `docs/real_data_validation.md`.
+- [x] Third iteration: switched from a 3D UNet to MIAI's per-slice 2D
+  UNet (`"two_d"` modality), matching ACDC's actual acquisition
+  geometry (a stack of independent 2D short-axis slices, not a true
+  volumetric scan) instead of forcing 3D convolutions across slices
+  that were never spatially coherent to begin with. Same data,
+  patient-level split, and epoch budget as the second iteration --
+  only the modality changed. Mean test Dice jumped from ~0.08 to
+  **0.71**, the first ACDC iteration where the model actually
+  generalizes. See `docs/real_data_validation.md`.
 
 ## Working principle
 
