@@ -384,6 +384,15 @@ and `inference: {roi_size: ..., ...}` as
   only the modality changed. Mean test Dice jumped from ~0.08 to
   **0.71**, the first ACDC iteration where the model actually
   generalizes. See `docs/real_data_validation.md`.
+- [x] Fourth iteration: scaled `DEFAULT_PATIENTS` from a 50-patient
+  subset to the full 150-patient ACDC dataset (300 cases, both ED and
+  ES), keeping the third iteration's 2D per-slice architecture,
+  patient-level split, and augmentation unchanged (epoch budget
+  reduced 40 -> 25 given ~3x the per-epoch example count). Mean test
+  Dice rose from 0.71 to **0.82**, confirming more data still helps
+  substantially once the model's inductive bias is correctly matched
+  to the data's real acquisition geometry. See
+  `docs/real_data_validation.md`.
 
 ## Working principle
 

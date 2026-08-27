@@ -79,6 +79,14 @@ patient since the second iteration) now multiply out into independent
 examples, versus 60 in the 3D runs, without staging a single extra
 file. See ``docs/real_data_validation.md`` for the result.
 
+**Fourth iteration: the full 150-patient dataset, not a 50-patient
+subset.** Now that the 2D per-slice modality is confirmed to
+generalize (iteration 3), ``DEFAULT_PATIENTS`` scales up from every
+3rd patient to every patient, patient001 through patient150 -- 300
+cases (both ED and ES), roughly 3x the training data of iteration 3.
+Same architecture, patient-level split, augmentation, and epoch budget
+otherwise. See ``docs/real_data_validation.md`` for the result.
+
 Run:
     python examples/validate_acdc.py --data-dir /path/to/ACDC \\
         --output-dir examples/output/acdc_validation
@@ -109,15 +117,15 @@ from miai_transforms.config import TransformConfig, TransformSpec
 
 logger = get_logger(__name__)
 
-#: Every 3rd patient from patient001 to patient148 (50 patients total,
-#: up from the first iteration's 30), spread across the full numeric
-#: range so both the official ACDC training split (001-100, 5
-#: pathology groups of 20) and testing split (101-150) are
-#: represented. Deterministic and reproducible -- not randomly sampled
-#: -- so re-running this script always validates against the same
-#: patients. Each patient contributes both its ED and ES frames (see
-#: ``_all_frame_paths``), so this is up to 100 cases, not 50.
-DEFAULT_PATIENTS = [f"patient{i:03d}" for i in range(1, 149, 3)]
+#: The full ACDC dataset: patient001 through patient150 (up from the
+#: second/third iterations' 50-patient subset), covering both the
+#: official training split (001-100, 5 pathology groups of 20) and
+#: testing split (101-150). Each patient contributes both its ED and
+#: ES frames (see ``_all_frame_paths``), so this is 300 cases, not 150
+#: -- the fourth iteration's scale-up now that the 2D per-slice
+#: modality (third iteration) proved the architecture generalizes;
+#: see ``docs/real_data_validation.md``.
+DEFAULT_PATIENTS = [f"patient{i:03d}" for i in range(1, 151)]
 
 #: Finer than the first iteration's (2.5, 2.5, 8.0) -- more spatial
 #: detail survives resampling, at the cost of more voxels per case.
@@ -523,7 +531,13 @@ def main() -> None:
         "--data-dir", type=Path, required=True, help="ACDC root dir with patientXXX/ subfolders"
     )
     parser.add_argument("--output-dir", type=Path, default=Path("examples/output/acdc_validation"))
-    parser.add_argument("--max-epochs", type=int, default=60)
+    parser.add_argument(
+        "--max-epochs",
+        type=int,
+        default=25,
+        help="25 is what the fourth iteration (full 150-patient dataset) used; the third "
+        "iteration's smaller 50-patient subset used 40 -- pass explicitly to match either.",
+    )
     args = parser.parse_args()
 
     configure_logging(level="INFO", force=True)

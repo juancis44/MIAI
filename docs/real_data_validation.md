@@ -247,6 +247,56 @@ how the data was actually acquired mattered far more here than any of
 the second iteration's levers (more data, augmentation, a deeper
 network, finer spacing) combined.**
 
+## Fourth iteration: the full 150-patient dataset
+
+The third iteration proved the architecture (2D per-slice) was the
+right fix; this iteration asks whether the second iteration's other
+lever -- more data -- still helps now that the inductive bias is
+correctly matched. `DEFAULT_PATIENTS` scales from every 3rd patient
+(50 patients, 100 cases) to every patient, `patient001` through
+`patient150` (150 patients, 300 cases: both ED and ES for each,
+covering ACDC's full official training split 001-100 across 5
+pathology groups, plus the testing split 101-150). Same 2D per-slice
+architecture, same patient-level split logic, same augmentation
+(flip + rotate90 + intensity shift) as the third iteration. Epoch
+budget was reduced from 40 to 25 given ~3x the per-epoch example
+count (roughly 2,160 2D slices/epoch vs ~700), to keep wall-clock
+reasonable on CPU-only compute (~326s/epoch, confirmed by a 2-epoch
+calibration run before the full run).
+
+Config: same 3-level UNet (16, 32, 64, 128 channels, 2 res units) at
+`spatial_dims=2`, patient-level split (this time 180/60/60 cases from
+90/30/30 patients), Adam `lr=1e-3`, 25 epochs, CPU-only, 2D
+sliding-window `roi_size=(256, 256)`.
+
+| Split | Cases | Dice |
+|---|---|---|
+| Validation (best epoch, 25) | 60 | 0.90 |
+| Held-out test | 60 | **0.82** |
+
+**More data helped further, on top of the architecture fix.** Test
+Dice rose from 0.71 (50 patients) to **0.82** (150 patients) -- a real
+and substantial jump, not noise -- with everything else about the
+model and training procedure unchanged. Mean specificity is 0.996 and
+mean sensitivity is 0.81, both improved over the third iteration.
+Per-case test Dice (60 cases) has a median of 0.86 and a mean of 0.82
+(stdev 0.13): 15 of 60 cases score >=0.90, most cases cluster in the
+0.75-0.94 range, and a handful are notable outliers on the low end --
+2 cases score below 0.5 (the weakest at 0.27), and 7 score below 0.7.
+Those low-Dice cases are consistent with what's already known to be
+hard for cardiac segmentation without multi-class labels (thin or
+faint structures, atypical anatomy, or partial-volume slices at the
+top/bottom of the stack) rather than a new problem introduced by
+scaling up. **The honest read: unlike the second iteration (where
+pulling every lever on top of a mismatched 3D architecture bought
+nothing), pulling the same "more data" lever on top of the
+*correctly* matched 2D architecture bought a further ~15% relative
+improvement in test Dice.** The remaining gap to the 0.90 validation
+Dice, and the small cluster of low-scoring outliers, are the natural
+next targets -- multi-class labels (RV / myocardium / LV instead of
+binary foreground) and explicit regularization remain the two levers
+this session deliberately did not pull.
+
 ## Reproducing this
 
 ```bash
@@ -254,6 +304,15 @@ python examples/validate_acdc.py \
     --data-dir /path/to/ACDC \
     --output-dir examples/output/acdc_validation \
     --max-epochs 40
+```
+
+To reproduce the fourth iteration's full-150-patient result specifically:
+
+```bash
+python examples/validate_acdc.py \
+    --data-dir /path/to/ACDC \
+    --output-dir examples/output/acdc_validation_150 \
+    --max-epochs 25
 ```
 
 Outputs land under `--output-dir` (git-ignored, like every other

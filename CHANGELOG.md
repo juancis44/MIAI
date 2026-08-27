@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Fourth ACDC validation iteration (2026-08-27): `examples/validate_acdc.py`
+  scales `DEFAULT_PATIENTS` from a 50-patient subset (100 cases) to the
+  full ACDC dataset -- `patient001` through `patient150` (300 cases,
+  both ED and ES), covering the official training split (001-100, 5
+  pathology groups) and testing split (101-150). Same 2D per-slice
+  architecture, patient-level split, and augmentation as the third
+  iteration; epoch budget reduced 40 -> 25 given ~3x the per-epoch
+  example count (patient-level split now 180/60/60 cases from
+  90/30/30 patients). Result: mean test Dice rose from 0.71 (50
+  patients) to **0.82** (150 patients), with specificity 0.996 and
+  sensitivity 0.81 -- confirming that more training data still helps
+  substantially once the model's inductive bias (2D per-slice) is
+  correctly matched to the data, unlike the second iteration's
+  combined levers on top of a mismatched 3D architecture, which
+  bought nothing. Full writeup in `docs/real_data_validation.md`.
 - Third ACDC validation iteration (2026-08-27): `examples/validate_acdc.py`
   switches from a 3D UNet to MIAI's per-slice 2D UNet
   (`architecture.modality = "two_d"`, already wired into every pipeline
