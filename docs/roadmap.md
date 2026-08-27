@@ -366,6 +366,15 @@ and `inference: {roi_size: ..., ...}` as
   (val Dice 0.83, held-out test Dice 0.09) as expected -- in
   `docs/real_data_validation.md`. Runnable via
   `examples/validate_acdc.py`.
+- [x] Second iteration: scaled up every improvement lever at once (ED+ES
+  frames with a patient-level split, stronger augmentation, a deeper
+  UNet, finer spacing, more epochs). Found and fixed a real
+  sliding-window `roi_size` bug that had been silently undercutting
+  test-time inference. Honest result even after the fix: mean test
+  Dice (0.082) is statistically unchanged from the first iteration's
+  0.088, despite 3.3x the data and a leak-proof split -- val Dice
+  reaching 0.72 shows the bottleneck is training data volume, not
+  model capacity. See `docs/real_data_validation.md`.
 
 ## Working principle
 

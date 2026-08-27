@@ -127,13 +127,77 @@ augmentation, and likely multi-class labels for clinically meaningful
 per-structure metrics -- none of which this validation's scope covered
 by design (see "Scope, and why it was simplified" above).
 
+## Second iteration: every improvement lever pulled at once
+
+The first run's diagnosis pointed at several possible fixes: more
+data, stronger augmentation, more epochs, a bigger architecture, finer
+resampling spacing, or multi-class labels. Rather than trying them one
+at a time, this iteration pulled every lever except multi-class labels
+simultaneously, to see how much combined headroom there was:
+
+| Lever | First run | Second run |
+|---|---|---|
+| Patients | 30, ED only | 50, ED **and** ES (up to 100 cases) |
+| Split | Case-level (`DatasetStage`) | **Patient-level** (a patient's ED/ES frames always share a split) |
+| Augmentation | Random flip only | Flip + random 90 deg rotation + random intensity shift |
+| Architecture | 2-level UNet (16, 32, 64 ch), 1 res unit | 3-level UNet (16, 32, 64, 128 ch), 2 res units |
+| Resampling spacing | (2.5, 2.5, 8.0) mm | (2.0, 2.0, 6.0) mm |
+| Epochs | 40 | 60 |
+
+Config: Adam `lr=1e-3`, CPU-only, `DEFAULT_PATIENTS` (every 3rd patient
+from `patient001` to `patient148`), 60 train / 20 val / 20 test cases
+(a 60/20/20 patient-level split of the 50-patient x ED+ES set).
+
+### A real bug found along the way, not just overfitting
+
+The first attempt at this run showed a mean test Dice of **0.040** --
+worse than the first iteration, despite validation Dice reaching 0.74.
+That gap was too large to be overfitting alone. The cause: finer
+z-spacing and a deeper network left padded volumes up to 24 slices
+tall, but `InferenceStage`'s sliding-window `roi_size` was still
+`(96, 96, 8)` -- sized for the first iteration's shallower cases.
+`train_model`'s validation loop scores each case with a single
+full-volume forward pass (see `miai_segmentation/three_d/train.py`),
+so windowing test-time inference into 8-slice chunks starved the model
+of z-context it had during validation, producing predictions from a
+systematically different computation than what validation measured
+(mean sensitivity was just 0.14 -- the model barely predicted any
+foreground at all under windowing). Fixed by sizing `roi_size` to
+`(256, 256, 32)`, comfortably larger than any padded case, so sliding-
+window inference reduces to a single full-volume pass matching
+validation. Re-running evaluation from the same checkpoint with the
+fix applied roughly doubled mean test Dice, from 0.040 to 0.084.
+
+### What the (bug-fixed) run showed
+
+| Split | Cases | Dice |
+|---|---|---|
+| Validation (best epoch, 60) | 20 | 0.72 |
+| Held-out test | 20 | 0.082 |
+
+**Combining every lever did not meaningfully improve real
+generalization.** Test Dice (0.082) is statistically indistinguishable
+from the first iteration's 0.088 -- despite 3.3x the cases, a
+patient-level split closing the leakage risk, stronger augmentation, a
+deeper network, and finer resampling. Per-case test Dice ranges from
+0.036 to 0.148, and mean specificity (0.60) is barely better than
+chance -- the model is still not learning heart shape from 60 training
+cases. The honest read: at this scale, model capacity was not the
+bottleneck (the same architecture reached 0.72 val Dice), *training
+data volume relative to the model's capacity* still is. A materially
+better result would likely need the full 150-patient dataset (not a
+50-patient subset), explicit regularization (dropout, weight decay --
+neither is currently exposed by `TrainingConfig`), and/or multi-class
+labels giving the loss more structured signal per voxel -- none of
+which this iteration covered.
+
 ## Reproducing this
 
 ```bash
 python examples/validate_acdc.py \
     --data-dir /path/to/ACDC \
     --output-dir examples/output/acdc_validation \
-    --max-epochs 40
+    --max-epochs 60
 ```
 
 Outputs land under `--output-dir` (git-ignored, like every other

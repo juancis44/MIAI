@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Second ACDC validation iteration (2026-08-27): `examples/validate_acdc.py`
+  now uses both ED and ES frames per patient (50 patients, up to 100
+  cases, up from 30 ED-only), a **patient-level** train/val/test split
+  (a patient's ED and ES frames always land in the same split -- the
+  previous `DatasetStage`-based case-level split couldn't guarantee
+  that once both frames were in play), stronger augmentation (random
+  90-degree rotation and intensity shift added to the existing random
+  flip), a deeper 3-level UNet, finer resampling spacing, and more
+  epochs (60, up from 40) -- every lever from the first run's
+  improvement list pulled at once, except multi-class labels. Also
+  found and fixed a real bug along the way: the inference stage's
+  sliding-window `roi_size` was sized for the first run's shallower
+  volumes and silently under-covered the taller, finer-spaced volumes
+  this run produced, cutting mean test Dice roughly in half versus
+  what the same checkpoint scores once `roi_size` covers a full case in
+  one window (0.040 -> 0.084). Honest result even with the fix and
+  every lever combined: mean test Dice 0.082, statistically
+  indistinguishable from the first run's 0.088 despite 3.3x the data,
+  the leak-proof split, and the bigger model -- val Dice reaching 0.72
+  shows the architecture has capacity, so the bottleneck is training
+  data volume, not model size. Full before/after writeup in
+  `docs/real_data_validation.md`.
 - First real-data validation (2026-08-26): `examples/validate_acdc.py`
   runs the full `miai_pipeline` (preprocess -> split -> train ->
   sliding-window inference -> evaluate) end to end against the public

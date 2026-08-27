@@ -25,13 +25,20 @@ extending the core library -- multi-class support (softmax/argmax,
 per-class Dice) would be a real feature addition, not a validation
 task. See ``docs/real_data_validation.md`` for the full writeup.
 
-**One frame per patient, no resampled labels through the pipeline's
-own preprocessing stage.** Each patient contributes only its
-end-diastole (ED) frame -- using both ED and ES would let the same
-patient's anatomy leak across the train/val/test split, since
-:class:`~miai_pipeline.stages.dataset.DatasetStage` splits at the case
-level. :class:`~miai_pipeline.stages.preprocessing.PreprocessingStage`
-only ever resamples one list of volumes at a time and MIAI's
+**Second iteration: every improvement lever pulled at once.** The
+first pass (30 patients, ED-frame-only, a small 2-level UNet, one
+random flip, 40 epochs) overfit badly (val Dice 0.83, test Dice
+0.088). This version scales up every lever simultaneously rather than
+one at a time: more data (50 patients x ED+ES = up to 100 cases, a
+patient-level split so a patient's ED and ES frames always land in
+the same split -- otherwise the same anatomy would leak across
+train/test), stronger augmentation (rotation and intensity shift in
+addition to the flip), a deeper architecture (3 downsamples instead
+of 2), finer resampling spacing, and more epochs.
+
+**No resampled labels through the pipeline's own preprocessing
+stage.** :class:`~miai_pipeline.stages.preprocessing.PreprocessingStage`
+only ever resamples one list of volumes at a time, and MIAI's
 pipeline conventionally leaves label volumes untouched by it (see
 ``examples/segmentation_pipeline.py``), which only works there because
 the synthetic labels are already at the target spacing. Real ACDC
@@ -40,6 +47,15 @@ over the images (linear interpolation + z-score normalization), once
 over the (binarized) labels (nearest-neighbor, no normalization) --
 so both land on identical geometry without touching
 :mod:`miai_pipeline` itself.
+
+**Patient-level split, not :class:`~miai_pipeline.stages.dataset.
+DatasetStage`.** That stage shuffles and splits at the case level,
+which is fine when each patient contributes exactly one case (the
+first iteration's ED-only scope) but would let a patient's ED and ES
+frames -- the same anatomy -- land in different splits here. This
+script builds the manifest itself: patients (not cases) are shuffled
+and partitioned by the same fractions, then every case belonging to a
+chosen patient goes to that patient's split.
 
 Run:
     python examples/validate_acdc.py --data-dir /path/to/ACDC \\
@@ -50,14 +66,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import random
 from pathlib import Path
 
 import SimpleITK as sitk
 
+from miai_core.io import write_json
 from miai_core.logging import configure_logging, get_logger
 from miai_evaluation.metrics import MetricsConfig
 from miai_pipeline.context import PipelineContext
-from miai_pipeline.stages.dataset import DatasetConfig, DatasetStage
 from miai_pipeline.stages.evaluation import EvaluationStage, EvaluationStageConfig
 from miai_pipeline.stages.inference import InferenceStage, InferenceStageConfig
 from miai_pipeline.stages.preprocessing import PreprocessingConfig, PreprocessingStage
@@ -70,35 +87,52 @@ from miai_transforms.config import TransformConfig, TransformSpec
 
 logger = get_logger(__name__)
 
-#: Every 5th patient from patient001 to patient146 (30 patients total),
-#: spread across the full numeric range so both the official ACDC
-#: training split (001-100, 5 pathology groups of 20) and testing
-#: split (101-150) are represented. Deterministic and reproducible --
-#: not randomly sampled -- so re-running this script always validates
-#: against the same cases.
-DEFAULT_PATIENTS = [f"patient{i:03d}" for i in range(1, 147, 5)]
+#: Every 3rd patient from patient001 to patient148 (50 patients total,
+#: up from the first iteration's 30), spread across the full numeric
+#: range so both the official ACDC training split (001-100, 5
+#: pathology groups of 20) and testing split (101-150) are
+#: represented. Deterministic and reproducible -- not randomly sampled
+#: -- so re-running this script always validates against the same
+#: patients. Each patient contributes both its ED and ES frames (see
+#: ``_all_frame_paths``), so this is up to 100 cases, not 50.
+DEFAULT_PATIENTS = [f"patient{i:03d}" for i in range(1, 149, 3)]
 
-_TARGET_SPACING = (2.5, 2.5, 8.0)
+#: Finer than the first iteration's (2.5, 2.5, 8.0) -- more spatial
+#: detail survives resampling, at the cost of more voxels per case.
+_TARGET_SPACING = (2.0, 2.0, 6.0)
 
-#: Matches _ARCHITECTURE's two stride-2 downsamples (2 * 2 = 4) --
-#: real volumes resampled to a fixed physical spacing (rather than a
-#: fixed voxel grid, unlike the synthetic examples/tests) land on an
-#: arbitrary size per case, which breaks the UNet's skip connections
-#: unless every case is padded up to a multiple of this first. Done
-#: once on disk (see ``_pad_to_divisible``) rather than via a
-#: ``"divisible_pad"`` transform in train/val/test transforms: a
-#: transform-only pad would apply to what the model sees during
-#: inference but not to the *unpadded* preprocessed label
+#: Matches _ARCHITECTURE's three stride-2 downsamples (2 * 2 * 2 = 8,
+#: up from the first iteration's 4) -- real volumes resampled to a
+#: fixed physical spacing (rather than a fixed voxel grid, unlike the
+#: synthetic examples/tests) land on an arbitrary size per case, which
+#: breaks the UNet's skip connections unless every case is padded up
+#: to a multiple of this first. Done once on disk (see
+#: ``_pad_to_divisible``) rather than via a ``"divisible_pad"``
+#: transform in train/val/test transforms: a transform-only pad would
+#: apply to what the model sees during inference but not to the
+#: *unpadded* preprocessed label
 #: :class:`~miai_pipeline.stages.evaluation.EvaluationStage` reads
 #: straight off disk, causing the same prediction/ground-truth
 #: shape mismatch worked around in ``_resample_labels_to_reference``.
-_DIVISIBLE_K = 4
+_DIVISIBLE_K = 8
 
+#: Random rotation and intensity shift added on top of the first
+#: iteration's single random flip -- more varied augmentation to fight
+#: the small-sample overfitting that iteration showed directly
+#: (predicting ~50% foreground everywhere instead of the heart's
+#: actual ~5.6% shape).
 _TRAIN_TRANSFORMS = TransformConfig(
     transforms=[
         TransformSpec(name="load_image", params={"keys": ["image", "label"]}),
         TransformSpec(
             name="rand_flip", params={"keys": ["image", "label"], "prob": 0.5, "spatial_axis": 0}
+        ),
+        TransformSpec(
+            name="rand_rotate90",
+            params={"keys": ["image", "label"], "prob": 0.5, "spatial_axes": (0, 1)},
+        ),
+        TransformSpec(
+            name="rand_shift_intensity", params={"keys": ["image"], "prob": 0.5, "offsets": 0.1}
         ),
         TransformSpec(name="ensure_type", params={"keys": ["image", "label"]}),
     ]
@@ -116,24 +150,47 @@ _TEST_TRANSFORMS = TransformConfig(
     ]
 )
 
+#: A third stride-2 level (16->32->64->128 channels) and 2 residual
+#: units per level, up from the first iteration's 2-level, 1-residual-
+#: unit network -- more capacity to actually learn heart shape rather
+#: than a coarse "about half the volume" average.
 _ARCHITECTURE = SegmentationModalityConfig(
     modality="three_d",
     three_d=ArchitectureConfig(
         kind="unet",
-        unet=UNetConfig(channels=(16, 32, 64), strides=(2, 2), num_res_units=1),
+        unet=UNetConfig(channels=(16, 32, 64, 128), strides=(2, 2, 2), num_res_units=2),
     ),
 )
 
+#: Large enough to cover every padded case in one sliding-window pass
+#: (the largest padded case in this dataset/spacing combination is
+#: (216, 240, 24); this is comfortably above that, and a multiple of
+#: 8 to match ``_DIVISIBLE_K``). This isn't a tuning choice -- it's a
+#: correctness requirement: :func:`~miai_segmentation.three_d.train.
+#: train_model`'s validation loop scores each case with a single
+#: full-volume forward pass, so :class:`~miai_pipeline.stages.
+#: inference.InferenceStage`'s sliding-window inference must see the
+#: same full volume per window too, or its test-time predictions come
+#: from a systematically different computation than what validation
+#: measured. The first run of this second iteration used a much
+#: smaller (96, 96, 8) ROI (sized for the first iteration's coarser
+#: spacing, before this iteration's finer spacing and deeper network
+#: made cases taller in z) -- windowing a 24-slice case into 8-slice
+#: chunks starved the model of z-context it had during validation and
+#: cut mean test Dice roughly in half (0.040 vs 0.084 with this fix),
+#: on top of whatever real overfitting was already there. See
+#: ``docs/real_data_validation.md`` for the measured before/after.
+_INFERENCE_ROI_SIZE = (256, 256, 32)
 
-def _ed_frame_paths(data_dir: Path, patient: str) -> tuple[Path, Path]:
-    """Find one patient's end-diastole (image, ground-truth) NIfTI pair.
 
-    ACDC's per-patient filenames encode the actual acquisition frame
-    number (e.g. ``patient001_frame01.nii.gz``), which varies patient
-    to patient -- so this can't be hardcoded as ``frame01`` for every
-    case. The lowest frame number is always end-diastole (ACDC's
-    ``Info.cfg`` records ``ED`` as the earlier of the two annotated
-    frames in every case in this dataset).
+def _all_frame_paths(data_dir: Path, patient: str) -> list[tuple[Path, Path]]:
+    """Find every annotated (image, ground-truth) NIfTI pair for a patient.
+
+    ACDC annotates two cardiac phases per patient -- end-diastole (ED)
+    and end-systole (ES) -- and its per-patient filenames encode the
+    actual acquisition frame number (e.g. ``patient001_frame01.nii.gz``,
+    ``patient001_frame12.nii.gz``), which varies patient to patient.
+    Returns both pairs, sorted by frame number (ED first).
     """
     patient_dir = data_dir / patient
     candidates = sorted(
@@ -141,11 +198,13 @@ def _ed_frame_paths(data_dir: Path, patient: str) -> tuple[Path, Path]:
     )
     if not candidates:
         raise FileNotFoundError(f"No frame*.nii.gz files found under {patient_dir}")
-    image_path = candidates[0]
-    label_path = image_path.with_name(image_path.name.replace(".nii.gz", "_gt.nii.gz"))
-    if not label_path.exists():
-        raise FileNotFoundError(f"Expected ground truth at {label_path}, not found.")
-    return image_path, label_path
+    pairs = []
+    for image_path in candidates:
+        label_path = image_path.with_name(image_path.name.replace(".nii.gz", "_gt.nii.gz"))
+        if not label_path.exists():
+            raise FileNotFoundError(f"Expected ground truth at {label_path}, not found.")
+        pairs.append((image_path, label_path))
+    return pairs
 
 
 def _binarize_label(src: Path, dst: Path) -> None:
@@ -159,22 +218,82 @@ def _binarize_label(src: Path, dst: Path) -> None:
 
 def build_case_lists(
     data_dir: Path, patients: list[str], output_dir: Path
-) -> tuple[list[Path], list[Path]]:
-    """Discover ED frames for each patient and binarize their labels.
+) -> tuple[list[Path], list[Path], list[str]]:
+    """Discover every ED+ES frame for each patient and binarize their labels.
 
     Returns:
-        Parallel ``(image_paths, binarized_label_paths)`` lists, one
-        entry per patient.
+        Parallel ``(image_paths, binarized_label_paths, patient_ids)``
+        lists, one entry per (patient, frame) case -- ``patient_ids``
+        records which patient each case came from, for the
+        patient-level split in :func:`_patient_level_split`.
     """
     image_paths = []
     binary_label_paths = []
+    patient_ids = []
     for patient in patients:
-        image_path, label_path = _ed_frame_paths(data_dir, patient)
-        binary_label_path = output_dir / "binary_labels" / f"{patient}_gt_binary.nii.gz"
-        _binarize_label(label_path, binary_label_path)
-        image_paths.append(image_path)
-        binary_label_paths.append(binary_label_path)
-    return image_paths, binary_label_paths
+        for image_path, label_path in _all_frame_paths(data_dir, patient):
+            case_name = image_path.name.removesuffix(".nii.gz")
+            binary_label_path = output_dir / "binary_labels" / f"{case_name}_gt_binary.nii.gz"
+            _binarize_label(label_path, binary_label_path)
+            image_paths.append(image_path)
+            binary_label_paths.append(binary_label_path)
+            patient_ids.append(patient)
+    return image_paths, binary_label_paths, patient_ids
+
+
+def _patient_level_split(
+    image_paths: list[Path],
+    label_paths: list[Path],
+    patient_ids: list[str],
+    val_fraction: float,
+    test_fraction: float,
+    seed: int,
+    manifest_path: Path,
+) -> dict[str, list[object]]:
+    """Split cases into train/val/test by patient, not by case.
+
+    Splitting at the case level (as
+    :class:`~miai_pipeline.stages.dataset.DatasetStage` does) would let
+    the same patient's ED and ES frames -- the same anatomy -- land in
+    different splits, leaking information from train into test.
+    Instead, whole patients are shuffled and partitioned by the given
+    fractions, and every case belonging to a chosen patient goes to
+    that patient's split.
+    """
+    unique_patients = sorted(set(patient_ids))
+    random.Random(seed).shuffle(unique_patients)
+
+    n = len(unique_patients)
+    n_test = int(n * test_fraction)
+    n_val = int(n * val_fraction)
+    test_patients = set(unique_patients[:n_test])
+    val_patients = set(unique_patients[n_test : n_test + n_val])
+    train_patients = set(unique_patients[n_test + n_val :])
+
+    def _entries(patients: set[str]) -> list[object]:
+        return [
+            {"image": str(image_paths[i]), "label": str(label_paths[i])}
+            for i in range(len(patient_ids))
+            if patient_ids[i] in patients
+        ]
+
+    manifest: dict[str, list[object]] = {
+        "train": _entries(train_patients),
+        "val": _entries(val_patients),
+        "test": _entries(test_patients),
+    }
+    logger.info(
+        "Patient-level split: %d train patients (%d cases), %d val patients (%d cases), "
+        "%d test patients (%d cases)",
+        len(train_patients),
+        len(manifest["train"]),
+        len(val_patients),
+        len(manifest["val"]),
+        len(test_patients),
+        len(manifest["test"]),
+    )
+    write_json(manifest, str(manifest_path))
+    return manifest
 
 
 def _resample_labels_to_reference(
@@ -264,8 +383,13 @@ def run_validation(data_dir: Path, output_dir: Path, max_epochs: int) -> dict[st
     """Run the full preprocess -> split -> train -> infer -> evaluate pipeline."""
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    image_paths, label_paths = build_case_lists(data_dir, DEFAULT_PATIENTS, output_dir)
-    logger.info("Discovered %d ACDC ED-frame cases under %s", len(image_paths), data_dir)
+    image_paths, label_paths, patient_ids = build_case_lists(data_dir, DEFAULT_PATIENTS, output_dir)
+    logger.info(
+        "Discovered %d ACDC cases (ED+ES) across %d patients under %s",
+        len(image_paths),
+        len(set(patient_ids)),
+        data_dir,
+    )
 
     context = PipelineContext()
 
@@ -300,24 +424,17 @@ def run_validation(data_dir: Path, output_dir: Path, max_epochs: int) -> dict[st
     context.set("preprocessed_image_paths", padded_image_paths)
     context.set("preprocessed_label_paths", padded_label_paths)
 
-    dataset_stage = DatasetStage(
-        DatasetConfig(
-            manifest_path=str(output_dir / "manifest.json"),
-            context_key="preprocessed_image_paths",
-            label_context_key="preprocessed_label_paths",
-            val_fraction=0.2,
-            test_fraction=0.2,
-            seed=42,
-        )
+    manifest = _patient_level_split(
+        padded_image_paths,
+        padded_label_paths,
+        patient_ids,
+        val_fraction=0.2,
+        test_fraction=0.2,
+        seed=42,
+        manifest_path=output_dir / "manifest.json",
     )
-    context = dataset_stage.run(context)
-    manifest = context.require("manifest")
-    logger.info(
-        "Split: %d train, %d val, %d test",
-        len(manifest["train"]),
-        len(manifest["val"]),
-        len(manifest["test"]),
-    )
+    context.set("manifest", manifest)
+    context.set("manifest_path", str(output_dir / "manifest.json"))
 
     training_stage = TrainingStage(
         TrainingStageConfig(
@@ -338,7 +455,7 @@ def run_validation(data_dir: Path, output_dir: Path, max_epochs: int) -> dict[st
             architecture=_ARCHITECTURE,
             inference=SegmentationInferenceConfig(
                 three_d=InferenceConfig(
-                    roi_size=(96, 96, 8), sw_batch_size=1, overlap=0.25, device="cpu"
+                    roi_size=_INFERENCE_ROI_SIZE, sw_batch_size=1, overlap=0.25, device="cpu"
                 )
             ),
         )
@@ -375,7 +492,7 @@ def main() -> None:
         "--data-dir", type=Path, required=True, help="ACDC root dir with patientXXX/ subfolders"
     )
     parser.add_argument("--output-dir", type=Path, default=Path("examples/output/acdc_validation"))
-    parser.add_argument("--max-epochs", type=int, default=25)
+    parser.add_argument("--max-epochs", type=int, default=60)
     args = parser.parse_args()
 
     configure_logging(level="INFO", force=True)
