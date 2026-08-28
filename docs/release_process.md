@@ -111,5 +111,16 @@ Everything below is now unblocked -- the one-time setup above is done.
   verified first, then the real GitHub Release triggered `publish-pypi`
   (approved via the `pypi` environment's required reviewer), and
   `pymiai==0.16.0` was confirmed live on pypi.org and installable.
-- Nothing left to prepare -- the next step is actually cutting a release
-  (see "Cutting a release" above), whenever the maintainer decides to.
+- **`v1.0.0` prepared, 2026-08-28** -- `pyproject.toml`'s `version` bumped
+  to `1.0.0` and `classifiers` bumped `"4 - Beta"` -> `"5 -
+  Production/Stable"` (see `docs/compatibility_policy.md`'s "Before 1.0"
+  vs. "From 1.0 onward" -- the ACDC real-data validation effort, five
+  iterations across binary and multi-class segmentation on real
+  clinical data, is the milestone judged to close out the API-shakeout
+  phase; see `docs/real_data_validation.md`). `CHANGELOG.md`'s
+  `Unreleased` section was cut to a dated `## [1.0.0]` heading, per step
+  2 above. Steps 3-6 (tag, TestPyPI dry run, GitHub Release, verify on
+  pypi.org) require pushing a tag and clicking through GitHub's Actions
+  UI/environment-reviewer approval -- outside what an automated
+  session in this repository can do; the maintainer needs to run those
+  from here.

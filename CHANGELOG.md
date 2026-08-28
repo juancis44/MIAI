@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-28
+
+First `1.0.0` release: the ACDC real-data validation effort (five
+iterations, 2026-08-26/27/28) is the milestone that closes out MIAI's
+`0.x` "shake out the API shape" phase (`docs/compatibility_policy.md`)
+-- every segmentation modality (`three_d`, `two_d`, `two_half_d`,
+binary and now multi-class) has been exercised end to end against
+real clinical data, not just synthetic test fixtures, and the public
+API has stabilized enough to commit to standard SemVer guarantees
+going forward (see `docs/compatibility_policy.md`'s "From 1.0
+onward"). No breaking changes in this release -- every addition below
+is backward compatible with `0.16.0`.
+
 ### Added
 
 - **Multi-class segmentation support** (2026-08-28): `miai_segmentation`
