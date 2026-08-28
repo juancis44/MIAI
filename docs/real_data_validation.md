@@ -371,10 +371,96 @@ regularization (dropout, weight decay -- still not exposed by
 `TrainingConfig`) is meant to guard against, and the clearest evidence
 yet that it remains the natural next lever, not merely a nice-to-have.
 
+## Sixth iteration: explicit regularization (dropout, weight decay)
+
+The fifth iteration's training run hit a late, transient instability --
+validation Dice collapsed to 0.0 at epoch 23 (loss spiking 0.14 -> 0.18
+-> 0.44) -- a training-loop failure mode explicit regularization is
+meant to guard against, and a concrete, real-data signal (not just a
+theoretical gap) that this lever was worth pulling next. Two new,
+orthogonal knobs, both newly added to `miai_segmentation` and both
+defaulting to off (`0.0`) so every prior iteration's config keeps
+working unchanged: `UNetConfig.dropout` (activation dropout inside each
+residual unit's ADN block, set here to `0.2`) and
+`TrainingConfig.weight_decay` (L2 penalty on the weights themselves,
+passed straight to `torch.optim.Adam`, set here to `1e-5`). Otherwise
+identical to the fifth iteration: same full 150-patient/300-case
+multi-class dataset, patient-level split, augmentation, architecture
+depth, and 25-epoch budget -- so any change in the result isolates the
+effect of regularization, not a confound from also changing the data or
+architecture.
+
+| Split | Cases | Dice (macro, foreground only) |
+|---|---|---|
+| Validation (best epoch, 13/25) | 60 | 0.8252 |
+| Held-out test | 60 | **0.7496** |
+
+Per-class mean test Dice:
+
+| Structure | Mean test Dice | Fifth iteration (no regularization) |
+|---|---|---|
+| Right ventricle (RV) | 0.70 | 0.58 |
+| Myocardium (Myo) | 0.71 | 0.72 |
+| Left ventricle (LV) | 0.83 | 0.86 |
+
+**The instability is gone.** Where the fifth iteration's val Dice
+collapsed to 0.0 at epoch 23, this run's epoch 23 scored 0.8051 --
+consistent with every neighboring epoch (0.80-0.83 for epochs 14-24),
+with no collapse anywhere in the 25-epoch run. That is the concrete
+question this iteration was run to answer, and the answer is yes:
+dropout + weight decay resolved the specific training-loop instability
+the fifth iteration surfaced.
+
+**Macro test Dice improved too, and RV -- the hardest structure --
+improved the most.** Macro test Dice rose from 0.72 to **0.75**, and
+RV Dice specifically rose from 0.58 to **0.70**, a 0.12 absolute (21%
+relative) improvement -- the single biggest per-class change of any
+iteration in this series. Myocardium Dice held essentially flat (0.72
+-> 0.71, within noise). LV Dice dropped slightly (0.86 -> 0.83) but
+stayed the strongest-performing structure by a wide margin. The
+honest read on LV: it's a small drop on the easiest structure, most
+plausibly regularization trading a little of LV's already-comfortable
+margin for RV's much-needed improvement (dropout and weight decay both
+suppress the network's ability to overfit any one structure's easier
+signal), rather than a real regression -- and net effect across all
+three structures is clearly positive.
+
+The best validation checkpoint moved earlier too: epoch 13 (0.8252)
+here versus epoch 22 (0.83) in the fifth iteration -- consistent with
+regularization's usual effect of both stabilizing training and
+converging to a good checkpoint sooner, at some cost to the ceiling
+val Dice can reach (0.8252 vs 0.83, a small difference within normal
+run-to-run variance).
+
+Per-case test Dice (60 cases) has a mean of 0.75 (stdev 0.11, tighter
+than the fifth iteration's stdev 0.16) and a median of 0.77, ranging
+0.32-0.88 -- notably, **no case reaches 0.90** (unlike the fourth,
+binary iteration), consistent with multi-class remaining intrinsically
+harder than binary "whole heart" segmentation regardless of
+regularization. Only 2 of 60 cases score below 0.5 (down from 3), and
+16 score below 0.7 (a case count similar to the fifth iteration's
+scatter). The weakest case is again `patient142_frame12` (Dice 0.32),
+already flagged in the fifth iteration as a globally hard slice/frame
+(low Dice across every structure at once, not a single-structure
+failure) -- regularization improved it somewhat (0.18 -> 0.32) but
+didn't fully resolve it, consistent with that case being a genuinely
+ambiguous slice rather than a training artifact.
+
+**The honest read: both goals of this iteration were met.** The
+targeted problem -- the fifth iteration's training instability -- is
+resolved, with no collapse anywhere in this run. And the secondary
+hope -- that regularization would also improve generalization, not
+just stability -- paid off too, concentrated almost entirely in RV,
+the structure that most needed it. The remaining gap between the
+best-ever binary result (0.82, fourth iteration) and this multi-class
+result (0.75) is expected and explained by the fifth iteration's
+analysis (multi-class inherently requires getting the class right, not
+just the pixel), not a new problem this iteration introduced.
+
 ## Reproducing this
 
-The script as it stands today runs the fifth iteration -- multi-class,
-150 patients, 25 epochs:
+The script as it stands today runs the sixth iteration -- multi-class,
+150 patients, 25 epochs, dropout 0.2, weight decay 1e-5:
 
 ```bash
 python examples/validate_acdc.py \

@@ -405,6 +405,16 @@ and `inference: {roi_size: ..., ...}` as
   concentrates in the RV, not spread evenly -- a more clinically
   meaningful result than a single binary number. See
   `docs/real_data_validation.md`.
+- [x] Sixth iteration: added explicit regularization to
+  `miai_segmentation` (`dropout` on `UNetConfig`, `weight_decay` on
+  `TrainingConfig`, both defaulting to `0.0`/off so no existing caller
+  is affected), motivated by the fifth iteration's late training
+  instability (validation Dice collapsed to 0.0 at epoch 23). Same
+  150-patient multi-class dataset, architecture, split, and epoch
+  budget as the fifth iteration, with `dropout=0.2`/`weight_decay=1e-5`.
+  The instability is resolved (no collapse anywhere in this run), and
+  macro test Dice improved **0.72 -> 0.75**, concentrated in the RV
+  (0.58 -> 0.70). See `docs/real_data_validation.md`.
 
 ## Working principle
 

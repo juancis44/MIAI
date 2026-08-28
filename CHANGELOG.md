@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Explicit regularization (dropout, weight decay)**: `miai_segmentation.
+  {two_d,three_d}.models.UNetConfig` gains a `dropout` field (default
+  `0.0`, matching MONAI `UNet`'s own default -- wired straight through
+  to its `dropout` constructor arg), and
+  `miai_segmentation.three_d.train.TrainingConfig` (shared by `two_d`)
+  gains a `weight_decay` field (default `0.0`, matching
+  `torch.optim.Adam`'s own default -- wired straight through to its
+  `weight_decay` kwarg). Both default to off, so every existing config
+  or call site keeps working byte-for-byte unchanged.
+- Sixth ACDC validation iteration (2026-08-28): `examples/validate_acdc.py`
+  puts the new regularization support to use (`dropout=0.2`,
+  `weight_decay=1e-5`), otherwise identical to the fifth iteration
+  (full 150-patient/300-case multi-class dataset, 2D per-slice UNet,
+  patient-level 180/60/60 split, augmentation, 25 epochs). Motivated by
+  the fifth iteration's late training instability (validation Dice
+  collapsed to 0.0 at epoch 23). Result: the instability is gone (no
+  collapse anywhere in this run), and macro test Dice improved from
+  0.72 to **0.75**, driven mostly by the right ventricle (RV Dice 0.58
+  -> 0.70) -- the structure the fifth iteration had flagged as hardest.
+  Full writeup in `docs/real_data_validation.md`.
+
 ## [1.0.0] - 2026-08-28
 
 First `1.0.0` release: the ACDC real-data validation effort (five

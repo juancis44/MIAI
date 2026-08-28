@@ -1,6 +1,7 @@
 """Tests for miai_segmentation.three_d.train (tiny real tensors, CPU only)."""
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 import torch
@@ -69,6 +70,20 @@ def test_train_model_empty_loader_raises(tmp_path: Path) -> None:
 
     with pytest.raises(SegmentationError):
         train_model(model, empty_loader, None, config, str(tmp_path / "unused"))
+
+
+def test_train_model_passes_weight_decay_to_optimizer(tmp_path: Path) -> None:
+    """weight_decay is a new TrainingConfig field -- confirm it actually
+    reaches torch.optim.Adam (not just accepted and ignored)."""
+    train_loader = _make_loader(tmp_path / "train", 1)
+    model = build_unet(_UNET_CONFIG)
+    config = TrainingConfig(max_epochs=1, device="cpu", weight_decay=0.01)
+
+    with patch("torch.optim.Adam", wraps=torch.optim.Adam) as mock_adam:
+        train_model(model, train_loader, None, config, str(tmp_path / "ckpt"))
+
+    mock_adam.assert_called_once()
+    assert mock_adam.call_args.kwargs["weight_decay"] == pytest.approx(0.01)
 
 
 def _dice_on_loader(model: torch.nn.Module, loader: DataLoader) -> float:

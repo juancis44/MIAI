@@ -39,6 +39,10 @@ class UNetConfig(MIAIBaseConfig):
         strides: Downsampling stride between consecutive levels in
             ``channels``; must have one fewer entry than ``channels``.
         num_res_units: Number of residual units per level.
+        dropout: Dropout probability applied within each residual
+            unit's ADN block. ``0.0`` (the default) disables dropout,
+            unchanged from this config's original behavior -- matches
+            :class:`monai.networks.nets.UNet`'s own default.
     """
 
     spatial_dims: int = 3
@@ -47,6 +51,7 @@ class UNetConfig(MIAIBaseConfig):
     channels: tuple[int, ...] = (16, 32, 64, 128)
     strides: tuple[int, ...] = (2, 2, 2)
     num_res_units: int = 2
+    dropout: float = 0.0
 
 
 def build_unet(config: UNetConfig) -> UNet:
@@ -65,6 +70,7 @@ def build_unet(config: UNetConfig) -> UNet:
         channels=config.channels,
         strides=config.strides,
         num_res_units=config.num_res_units,
+        dropout=config.dropout,
     )
 
 

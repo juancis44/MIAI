@@ -39,6 +39,15 @@ class TrainingConfig(MIAIBaseConfig):
     Attributes:
         max_epochs: Number of training epochs.
         learning_rate: Adam optimizer learning rate.
+        weight_decay: Adam optimizer L2 weight decay (MONAI/PyTorch's
+            ``Adam(weight_decay=...)``). ``0.0`` (the default) disables
+            it, unchanged from this config's original behavior --
+            matches :class:`torch.optim.Adam`'s own default. A nonzero
+            value penalizes large weights during training, a standard
+            regularizer against overfitting -- complementary to
+            :attr:`~miai_segmentation.three_d.models.UNetConfig.dropout`
+            /:attr:`~miai_segmentation.two_d.models.UNetConfig.dropout`,
+            which regularizes activations rather than weights.
         val_interval: Run validation every ``val_interval`` epochs.
         device: ``"cpu"`` or ``"cuda"`` (or a specific CUDA device
             string, e.g. ``"cuda:0"``).
@@ -65,6 +74,7 @@ class TrainingConfig(MIAIBaseConfig):
 
     max_epochs: int = 100
     learning_rate: float = 1e-4
+    weight_decay: float = 0.0
     val_interval: int = 1
     device: str = "cpu"
     checkpoint_name: str = "best_model.pt"
@@ -124,7 +134,9 @@ def train_model(
         dice_metric = DiceMetric(include_background=True, reduction="mean", get_not_nans=False)
         post_pred = Compose([AsDiscrete(threshold=0.5)])
         post_label = Compose([AsDiscrete(threshold=0.5)])
-    optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
+    optimizer = torch.optim.Adam(
+        model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay
+    )
 
     out_dir = ensure_dir(checkpoint_dir)
     checkpoint_path = out_dir / config.checkpoint_name

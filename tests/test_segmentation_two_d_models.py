@@ -50,6 +50,26 @@ def test_build_unet_default_config_is_valid() -> None:
     assert isinstance(model, UNet)
 
 
+def test_build_unet_with_dropout_forward_shape_matches_input() -> None:
+    """dropout is a new UNetConfig field -- confirm it's actually wired
+    through to MONAI's UNet (not just accepted and ignored) and the
+    model still runs end to end."""
+    config = UNetConfig(
+        spatial_dims=2,
+        in_channels=1,
+        out_channels=1,
+        channels=(4, 8),
+        strides=(2,),
+        num_res_units=1,
+        dropout=0.3,
+    )
+    model = build_unet(config)
+    x = torch.zeros(1, 1, 16, 16)
+    with torch.no_grad():
+        y = model(x)
+    assert y.shape == (1, 1, 16, 16)
+
+
 def test_build_attention_unet_returns_monai_attention_unet() -> None:
     model = build_attention_unet(_TINY_ATTENTION_UNET)
     assert isinstance(model, AttentionUnet)

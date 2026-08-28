@@ -117,6 +117,25 @@ otherwise from the fourth iteration's full 150-patient/300-case
 dataset, split, augmentation, and epoch budget. See
 ``docs/real_data_validation.md`` for the result.
 
+**Sixth iteration: explicit regularization (dropout, weight decay).**
+The fifth iteration's training run hit a late, transient instability
+-- validation Dice collapsed to 0.0 at epoch 23 (loss spiking
+0.14 -> 0.18 -> 0.44), a training-loop failure mode explicit
+regularization is meant to guard against, and a concrete, real-data
+signal (not just a theoretical gap) that this lever was worth pulling
+next. Two new, orthogonal knobs, both newly added to
+:mod:`miai_segmentation` and both defaulting to off (``0.0``) so every
+prior iteration's config keeps working unchanged: ``UNetConfig.
+dropout`` (activation dropout inside each residual unit's ADN block,
+set here to ``_DROPOUT = 0.2``) and ``TrainingConfig.weight_decay``
+(L2 penalty on the weights themselves, passed straight to
+``torch.optim.Adam``, set here to ``_WEIGHT_DECAY = 1e-5``). Otherwise
+identical to the fifth iteration: same full 150-patient/300-case
+multi-class dataset, patient-level split, augmentation, architecture
+depth, and 25-epoch budget -- so any change in the result isolates the
+effect of regularization, not a confound from also changing the data
+or architecture. See ``docs/real_data_validation.md`` for the result.
+
 Run:
     python examples/validate_acdc.py --data-dir /path/to/ACDC \\
         --output-dir examples/output/acdc_validation
@@ -232,6 +251,21 @@ _NUM_CLASSES = 4
 #: docstring) and this mapping is ACDC-specific domain knowledge.
 _CLASS_NAMES = {1: "RV", 2: "Myo", 3: "LV"}
 
+#: Dropout probability inside each residual unit's ADN block -- see the
+#: module docstring's "Sixth iteration" section. ``0.2`` is a
+#: conventional light-to-moderate choice for a UNet this size (deep
+#: enough to have real capacity to overfit at this data scale, shallow
+#: enough that heavier dropout would likely just slow convergence
+#: rather than help).
+_DROPOUT = 0.2
+
+#: Adam L2 weight decay -- see the module docstring's "Sixth iteration"
+#: section. ``1e-5`` is a conventional light default: small enough not
+#: to fight the primary Dice loss signal, large enough to discourage
+#: the kind of large-weight excursion the fifth iteration's epoch-23
+#: instability looked like.
+_WEIGHT_DECAY = 1e-5
+
 #: 2D per-slice UNet (see the module docstring's "Third iteration"
 #: section for why 2D, not 3D, is the right fit for this data): a
 #: third stride-2 level (16->32->64->128 channels) and 2 residual units
@@ -241,7 +275,8 @@ _CLASS_NAMES = {1: "RV", 2: "Myo", 3: "LV"}
 #: makes this a multi-class model -- see the module docstring's "Fifth
 #: iteration" section for how ``TrainingConfig``/``InferenceConfig``/
 #: ``MetricsConfig`` pick up the same ``_NUM_CLASSES`` to train, infer,
-#: and score consistently as 4-class instead of binary.
+#: and score consistently as 4-class instead of binary. ``dropout=
+#: _DROPOUT`` is new in the sixth iteration -- see that section.
 _ARCHITECTURE = SegmentationModalityConfig(
     modality="two_d",
     two_d=ArchitectureConfig(
@@ -251,6 +286,7 @@ _ARCHITECTURE = SegmentationModalityConfig(
             strides=(2, 2, 2),
             num_res_units=2,
             out_channels=_NUM_CLASSES,
+            dropout=_DROPOUT,
         ),
     ),
 )
@@ -547,6 +583,7 @@ def run_validation(data_dir: Path, output_dir: Path, max_epochs: int) -> dict[st
             training=TrainingConfig(
                 max_epochs=max_epochs,
                 learning_rate=1e-3,
+                weight_decay=_WEIGHT_DECAY,
                 device="cpu",
                 num_classes=_NUM_CLASSES,
             ),
