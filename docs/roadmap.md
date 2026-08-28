@@ -393,6 +393,18 @@ and `inference: {roi_size: ..., ...}` as
   substantially once the model's inductive bias is correctly matched
   to the data's real acquisition geometry. See
   `docs/real_data_validation.md`.
+- [x] Fifth iteration: added genuine multi-class support to
+  `miai_segmentation`/`miai_evaluation` (`num_classes` on
+  `TrainingConfig`/`InferenceConfig`/`MetricsConfig`, defaulting to `1`
+  so every existing binary caller is unaffected), then put it to use
+  training on ACDC's real 4-class ground truth (background, RV,
+  myocardium, LV) instead of a merged binary "whole heart" label --
+  same 150-patient dataset, architecture, split, and epoch budget as
+  the fourth iteration. Macro test Dice **0.72**, with a per-class
+  breakdown (RV 0.58, Myo 0.72, LV 0.86) showing the difficulty
+  concentrates in the RV, not spread evenly -- a more clinically
+  meaningful result than a single binary number. See
+  `docs/real_data_validation.md`.
 
 ## Working principle
 

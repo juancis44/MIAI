@@ -1,4 +1,5 @@
-"""Sliding-window inference for a trained 3D segmentation model."""
+"""Sliding-window inference for a trained 3D segmentation model, binary
+or multi-class (see :attr:`InferenceConfig.num_classes`)."""
 
 from __future__ import annotations
 
@@ -26,8 +27,15 @@ class InferenceConfig(MIAIBaseConfig):
         sw_batch_size: Number of windows evaluated per forward pass.
         overlap: Fractional overlap between adjacent windows.
         threshold: Sigmoid probability threshold above which a voxel is
-            predicted foreground.
+            predicted foreground. Ignored when ``num_classes > 1``.
         device: ``"cpu"`` or ``"cuda"``.
+        num_classes: Number of segmentation classes, including
+            background. ``1`` (the default) is the original binary
+            path: sigmoid probabilities, thresholded at ``threshold``.
+            Any value ``> 1`` switches to softmax + argmax, producing
+            an integer class-id mask with values in
+            ``[0, num_classes)``. Must match the ``out_channels`` of
+            the model that produced ``checkpoint_path``.
     """
 
     roi_size: tuple[int, int, int] = (96, 96, 96)
@@ -35,6 +43,7 @@ class InferenceConfig(MIAIBaseConfig):
     overlap: float = 0.25
     threshold: float = 0.5
     device: str = "cpu"
+    num_classes: int = 1
 
 
 def run_inference(
@@ -117,8 +126,16 @@ def run_inference(
                     "Expected the model to return a single tensor from "
                     f"sliding_window_inference, got {type(raw_output).__name__}."
                 )
-            probs = torch.sigmoid(raw_output)
-            mask = (probs > config.threshold).squeeze(0).squeeze(0).to(torch.uint8).cpu().numpy()
+            if config.num_classes > 1:
+                # argmax is monotonic under softmax, so it can run
+                # directly on raw logits -- see two_d.infer's
+                # _predict_slice_mask for the same reasoning.
+                mask = raw_output.argmax(dim=1).squeeze(0).to(torch.uint8).cpu().numpy()
+            else:
+                probs = torch.sigmoid(raw_output)
+                mask = (
+                    (probs > config.threshold).squeeze(0).squeeze(0).to(torch.uint8).cpu().numpy()
+                )
 
             reference_path = source_paths[idx]
             reference_image = sitk.ReadImage(str(reference_path))

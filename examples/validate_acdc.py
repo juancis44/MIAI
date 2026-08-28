@@ -1,4 +1,4 @@
-"""Real-data validation: whole-heart binary segmentation on ACDC.
+"""Real-data validation: multi-class (RV/myocardium/LV) segmentation on ACDC.
 
 Every other example/test in this repo runs against small synthetic
 volumes -- useful for exercising the wiring, but it never proves the
@@ -16,14 +16,16 @@ point ``--data-dir`` at the folder containing ``patientXXX/``
 subdirectories (each with ``patientXXX_frameNN.nii.gz`` +
 ``patientXXX_frameNN_gt.nii.gz`` pairs, the standard ACDC layout).
 
-**Binary, not multi-class.** ACDC's ground truth has 4 classes
-(background, right ventricle, myocardium, left ventricle), but
-:mod:`miai_segmentation` is currently binary-only (sigmoid + 0.5
-threshold, ``DiceLoss(sigmoid=True)``). This script merges the three
-foreground structures into one "whole heart" label rather than
-extending the core library -- multi-class support (softmax/argmax,
-per-class Dice) would be a real feature addition, not a validation
-task. See ``docs/real_data_validation.md`` for the full writeup.
+**Binary, not multi-class -- iterations 1 through 4.** ACDC's ground
+truth has 4 classes (background, right ventricle, myocardium, left
+ventricle), but through the fourth iteration :mod:`miai_segmentation`
+was binary-only (sigmoid + 0.5 threshold, ``DiceLoss(sigmoid=True)``),
+so this script merged the three foreground structures into one
+"whole heart" label rather than extending the core library --
+deliberately scoped out as "a real feature addition, not a validation
+task" at the time. See ``docs/real_data_validation.md`` for that
+history and the **Fifth iteration** section below for where it stops
+being deliberately out of scope.
 
 **Second iteration: every improvement lever pulled at once.** The
 first pass (30 patients, ED-frame-only, a small 2-level UNet, one
@@ -44,7 +46,8 @@ pipeline conventionally leaves label volumes untouched by it (see
 the synthetic labels are already at the target spacing. Real ACDC
 labels are not, so this script runs the *same* stage twice -- once
 over the images (linear interpolation + z-score normalization), once
-over the (binarized) labels (nearest-neighbor, no normalization) --
+over the (uint8-cast, since the fifth iteration) labels
+(nearest-neighbor, no normalization) --
 so both land on identical geometry without touching
 :mod:`miai_pipeline` itself.
 
@@ -86,6 +89,33 @@ generalize (iteration 3), ``DEFAULT_PATIENTS`` scales up from every
 cases (both ED and ES), roughly 3x the training data of iteration 3.
 Same architecture, patient-level split, augmentation, and epoch budget
 otherwise. See ``docs/real_data_validation.md`` for the result.
+
+**Fifth iteration: multi-class (RV/myocardium/LV), a real feature
+addition to** :mod:`miai_segmentation`. Every prior iteration merged
+ACDC's three annotated structures into one "whole heart" foreground
+label -- useful to validate the pipeline and the 2D-per-slice
+modeling choice cheaply, but clinically the three structures matter
+individually (RV and LV volumes/ejection fractions are diagnostic
+quantities in their own right; the myocardium is a distinct tissue
+with its own pathology). This iteration extends
+:mod:`miai_segmentation` and :mod:`miai_evaluation` with a genuine
+multi-class path (see ``TrainingConfig.num_classes``,
+``InferenceConfig.num_classes``, and ``MetricsConfig.num_classes``,
+all newly added -- ``num_classes=1``, the default everywhere, keeps
+every prior binary behavior byte-for-byte unchanged): softmax logits
+and ``DiceLoss(softmax=True, to_onehot_y=True)`` instead of
+sigmoid/threshold, argmax instead of a probability threshold at
+inference, and one-hot-encoded, background-excluded (``include_
+background=False``) evaluation metrics -- plus a per-class Dice
+breakdown (``dice_class_1``/``dice_class_2``/``dice_class_3``, named
+here as RV/Myo/LV via ``_CLASS_NAMES``, ACDC's own convention) so a
+single macro-averaged number can't hide which structure the model
+struggles with. No new data, no new staging, and no binarization step
+any more -- ``_prepare_label`` (formerly ``_binarize_label``) now just
+casts ACDC's already-4-class ground truth to ``uint8``, unchanged
+otherwise from the fourth iteration's full 150-patient/300-case
+dataset, split, augmentation, and epoch budget. See
+``docs/real_data_validation.md`` for the result.
 
 Run:
     python examples/validate_acdc.py --data-dir /path/to/ACDC \\
@@ -189,16 +219,39 @@ _TEST_TRANSFORMS = TransformConfig(
     ]
 )
 
+#: Number of segmentation classes, including background -- ACDC's own
+#: ground-truth convention: 0 = background, 1 = right ventricle (RV),
+#: 2 = myocardium (Myo), 3 = left ventricle (LV). See the module
+#: docstring's "Fifth iteration" section.
+_NUM_CLASSES = 4
+
+#: Human-readable names for :func:`miai_evaluation.metrics.
+#: compute_case_metrics`'s generic ``dice_class_{c}`` keys -- kept here,
+#: not in :mod:`miai_evaluation`, since that module stays
+#: dataset-agnostic on purpose (see ``MetricsConfig.num_classes``'s
+#: docstring) and this mapping is ACDC-specific domain knowledge.
+_CLASS_NAMES = {1: "RV", 2: "Myo", 3: "LV"}
+
 #: 2D per-slice UNet (see the module docstring's "Third iteration"
 #: section for why 2D, not 3D, is the right fit for this data): a
 #: third stride-2 level (16->32->64->128 channels) and 2 residual units
 #: per level, the same depth/width as the second iteration's 3D
-#: network, just at ``spatial_dims=2``.
+#: network, just at ``spatial_dims=2``. ``out_channels=_NUM_CLASSES``
+#: (up from the binary iterations' implicit ``1``) is what actually
+#: makes this a multi-class model -- see the module docstring's "Fifth
+#: iteration" section for how ``TrainingConfig``/``InferenceConfig``/
+#: ``MetricsConfig`` pick up the same ``_NUM_CLASSES`` to train, infer,
+#: and score consistently as 4-class instead of binary.
 _ARCHITECTURE = SegmentationModalityConfig(
     modality="two_d",
     two_d=ArchitectureConfig(
         kind="unet",
-        unet=UNetConfig(channels=(16, 32, 64, 128), strides=(2, 2, 2), num_res_units=2),
+        unet=UNetConfig(
+            channels=(16, 32, 64, 128),
+            strides=(2, 2, 2),
+            num_res_units=2,
+            out_channels=_NUM_CLASSES,
+        ),
     ),
 )
 
@@ -246,38 +299,47 @@ def _all_frame_paths(data_dir: Path, patient: str) -> list[tuple[Path, Path]]:
     return pairs
 
 
-def _binarize_label(src: Path, dst: Path) -> None:
-    """Write a whole-heart binary mask (any of RV/myocardium/LV -> 1)."""
+def _prepare_label(src: Path, dst: Path) -> None:
+    """Copy a ground-truth label, cast to ``uint8``.
+
+    Fifth iteration: no longer binarized (see the module docstring's
+    "Fifth iteration" section) -- ACDC's ground truth already encodes
+    exactly the four classes this iteration trains on (background=0,
+    RV=1, myocardium=2, LV=3), so the only transformation needed is a
+    consistent dtype, matching what every downstream step (resampling,
+    padding, one-hot encoding in :func:`miai_evaluation.metrics.
+    compute_case_metrics`) assumes.
+    """
     dst.parent.mkdir(parents=True, exist_ok=True)
     label_image = sitk.ReadImage(str(src))
-    binary = sitk.Cast(label_image > 0, sitk.sitkUInt8)
-    binary.CopyInformation(label_image)
-    sitk.WriteImage(binary, str(dst))
+    cast = sitk.Cast(label_image, sitk.sitkUInt8)
+    cast.CopyInformation(label_image)
+    sitk.WriteImage(cast, str(dst))
 
 
 def build_case_lists(
     data_dir: Path, patients: list[str], output_dir: Path
 ) -> tuple[list[Path], list[Path], list[str]]:
-    """Discover every ED+ES frame for each patient and binarize their labels.
+    """Discover every ED+ES frame for each patient and prepare their labels.
 
     Returns:
-        Parallel ``(image_paths, binarized_label_paths, patient_ids)``
-        lists, one entry per (patient, frame) case -- ``patient_ids``
-        records which patient each case came from, for the
-        patient-level split in :func:`_patient_level_split`.
+        Parallel ``(image_paths, label_paths, patient_ids)`` lists, one
+        entry per (patient, frame) case -- ``patient_ids`` records
+        which patient each case came from, for the patient-level split
+        in :func:`_patient_level_split`.
     """
     image_paths = []
-    binary_label_paths = []
+    prepared_label_paths = []
     patient_ids = []
     for patient in patients:
         for image_path, label_path in _all_frame_paths(data_dir, patient):
             case_name = image_path.name.removesuffix(".nii.gz")
-            binary_label_path = output_dir / "binary_labels" / f"{case_name}_gt_binary.nii.gz"
-            _binarize_label(label_path, binary_label_path)
+            prepared_label_path = output_dir / "labels" / f"{case_name}_gt.nii.gz"
+            _prepare_label(label_path, prepared_label_path)
             image_paths.append(image_path)
-            binary_label_paths.append(binary_label_path)
+            prepared_label_paths.append(prepared_label_path)
             patient_ids.append(patient)
-    return image_paths, binary_label_paths, patient_ids
+    return image_paths, prepared_label_paths, patient_ids
 
 
 def _patient_level_split(
@@ -432,8 +494,9 @@ def run_validation(data_dir: Path, output_dir: Path, max_epochs: int) -> dict[st
 
     context = PipelineContext()
 
-    # Preprocess images and (binarized) labels through the *same* stage
-    # separately, so both land on identical resampled geometry -- see
+    # Preprocess images and (prepared, multi-class) labels through the
+    # *same* stage separately, so both land on identical resampled
+    # geometry -- see
     # the module docstring for why this can't just reuse
     # examples/segmentation_pipeline.py's single-pass pattern.
     image_stage = PreprocessingStage(
@@ -481,7 +544,12 @@ def run_validation(data_dir: Path, output_dir: Path, max_epochs: int) -> dict[st
             train_transforms=_TRAIN_TRANSFORMS,
             val_transforms=_EVAL_TRANSFORMS,
             architecture=_ARCHITECTURE,
-            training=TrainingConfig(max_epochs=max_epochs, learning_rate=1e-3, device="cpu"),
+            training=TrainingConfig(
+                max_epochs=max_epochs,
+                learning_rate=1e-3,
+                device="cpu",
+                num_classes=_NUM_CLASSES,
+            ),
         )
     )
     context = training_stage.run(context)
@@ -494,7 +562,11 @@ def run_validation(data_dir: Path, output_dir: Path, max_epochs: int) -> dict[st
             architecture=_ARCHITECTURE,
             inference=SegmentationInferenceConfig(
                 two_d=InferenceConfig(
-                    roi_size=_INFERENCE_ROI_SIZE, sw_batch_size=4, overlap=0.25, device="cpu"
+                    roi_size=_INFERENCE_ROI_SIZE,
+                    sw_batch_size=4,
+                    overlap=0.25,
+                    device="cpu",
+                    num_classes=_NUM_CLASSES,
                 )
             ),
         )
@@ -510,6 +582,7 @@ def run_validation(data_dir: Path, output_dir: Path, max_epochs: int) -> dict[st
                 include_sensitivity=True,
                 include_specificity=True,
                 include_volume_similarity=True,
+                num_classes=_NUM_CLASSES,
             ),
             report_path=str(output_dir / "evaluation_report.json"),
         )
@@ -517,10 +590,22 @@ def run_validation(data_dir: Path, output_dir: Path, max_epochs: int) -> dict[st
     context = evaluation_stage.run(context)
     metrics = context.require("metrics")
 
+    # Human-readable RV/Myo/LV names for compute_case_metrics's generic
+    # dice_class_{c} keys -- see _CLASS_NAMES for why this mapping lives
+    # here, not in miai_evaluation.
+    named_class_dice = {
+        f"dice_{name.lower()}": metrics["mean"][f"dice_class_{class_id}"]
+        for class_id, name in _CLASS_NAMES.items()
+        if f"dice_class_{class_id}" in metrics["mean"]
+    }
+    if named_class_dice:
+        logger.info("Per-class mean test Dice: %s", named_class_dice)
+
     return {
         "manifest_sizes": {k: len(v) for k, v in manifest.items()},
         "checkpoint": context.require("model_checkpoint_path"),
         "mean_metrics": metrics["mean"],
+        "named_class_dice": named_class_dice,
         "per_case": metrics["per_case"],
     }
 

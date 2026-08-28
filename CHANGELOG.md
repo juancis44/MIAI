@@ -9,6 +9,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Multi-class segmentation support** (2026-08-28): `miai_segmentation`
+  and `miai_evaluation` gain a genuine multi-class path, not just a
+  binary-only one. `miai_segmentation.three_d.train.TrainingConfig`,
+  `miai_segmentation.{two_d,three_d}.infer.InferenceConfig`, and
+  `miai_evaluation.metrics.MetricsConfig` each gain a `num_classes`
+  field (default `1`, preserving every existing binary caller's
+  behavior byte-for-byte). Setting `num_classes > 1` switches training
+  to softmax logits and `DiceLoss(softmax=True, to_onehot_y=True)`
+  (in place of sigmoid + threshold), inference to argmax (in place of
+  a probability threshold), and evaluation to one-hot-encoded,
+  background-excluded (`include_background=False`) metrics, plus a new
+  per-class Dice breakdown (`dice_class_1`, `dice_class_2`, ...) so a
+  single macro-averaged Dice can't hide which class a model struggles
+  with. Fully backward compatible -- `num_classes=1` is the default
+  everywhere, so no existing config or call site changes behavior.
+- Fifth ACDC validation iteration (2026-08-28): `examples/validate_acdc.py`
+  puts the new multi-class support to real use -- ACDC's ground truth
+  (background, right ventricle, myocardium, left ventricle) is no
+  longer merged into one "whole heart" binary label; the model now
+  trains and is scored on all 4 classes directly (`_NUM_CLASSES = 4`
+  wired into `TrainingConfig`/`InferenceConfig`/`MetricsConfig`; the
+  label preparation step, formerly `_binarize_label`, now just casts
+  ACDC's already-4-class ground truth to `uint8`). Same full
+  150-patient/300-case dataset, 2D per-slice UNet architecture
+  (`out_channels=4`), patient-level 180/60/60 split, augmentation, and
+  25-epoch budget as the fourth iteration. Result: macro (foreground-
+  only) mean test Dice **0.72**, with a per-class breakdown showing the
+  difficulty is concentrated in the right ventricle (RV Dice 0.58, a
+  thin crescent-shaped structure) more than the myocardium (0.72) or
+  left ventricle (0.86, close to the fourth iteration's binary
+  result) -- a well-known pattern in cardiac segmentation, and a more
+  clinically meaningful result than a single binary "whole heart"
+  number. Full writeup in `docs/real_data_validation.md`.
 - Fourth ACDC validation iteration (2026-08-27): `examples/validate_acdc.py`
   scales `DEFAULT_PATIENTS` from a 50-patient subset (100 cases) to the
   full ACDC dataset -- `patient001` through `patient150` (300 cases,

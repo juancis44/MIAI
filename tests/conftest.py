@@ -173,6 +173,70 @@ def make_synthetic_volume_pair(
     return image_path, label_path
 
 
+def make_synthetic_multiclass_volume_pair(
+    directory: Path | str,
+    *,
+    name: str = "case0",
+    size: tuple[int, int, int] = (16, 16, 16),
+    spacing: tuple[float, float, float] = (1.0, 1.0, 1.0),
+    num_classes: int = 4,
+) -> tuple[Path, Path]:
+    """Write a synthetic image + multi-class label NIfTI pair to ``directory``.
+
+    Same idea as :func:`make_synthetic_volume_pair` (a real file pair on
+    disk, an easy-to-fit signal), but the label has ``num_classes``
+    nested concentric cubes (class ``1`` outermost, class
+    ``num_classes - 1`` innermost) instead of one binary cube -- a
+    stand-in for ACDC's 4-class convention (background, RV, myocardium,
+    LV) used by ``examples/validate_acdc.py``'s multi-class iteration,
+    without depending on real ACDC data in tests.
+
+    Args:
+        directory: Directory the two files are written under (created
+            if missing).
+        name: Case identifier used in the output filenames.
+        size: Volume shape as ``(depth, height, width)``.
+        spacing: Voxel spacing in millimeters.
+        num_classes: Number of classes including background (``4`` by
+            default, matching ACDC).
+
+    Returns:
+        ``(image_path, label_path)``.
+    """
+    import numpy as np
+    import SimpleITK as sitk
+
+    directory = Path(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+
+    rng = np.random.default_rng(0)
+    depth, height, width = size
+    label_arr = np.zeros((depth, height, width), dtype=np.uint8)
+    n_foreground = num_classes - 1
+    for class_id in range(1, num_classes):
+        # Each class shrinks the cube further inward, so every class
+        # gets its own distinct shell rather than being fully
+        # overwritten by the next one.
+        shrink = class_id / (n_foreground + 1) / 2
+        d0, d1 = int(depth * shrink), depth - int(depth * shrink)
+        h0, h1 = int(height * shrink), height - int(height * shrink)
+        w0, w1 = int(width * shrink), width - int(width * shrink)
+        label_arr[d0:d1, h0:h1, w0:w1] = class_id
+
+    image_arr = label_arr.astype(np.float32) + rng.normal(0, 0.1, size=size).astype(np.float32)
+
+    image = sitk.GetImageFromArray(image_arr)
+    image.SetSpacing(spacing)
+    label = sitk.GetImageFromArray(label_arr)
+    label.CopyInformation(image)
+
+    image_path = directory / f"{name}_image.nii.gz"
+    label_path = directory / f"{name}_label.nii.gz"
+    sitk.WriteImage(image, str(image_path))
+    sitk.WriteImage(label, str(label_path))
+    return image_path, label_path
+
+
 def make_offset_cube_volume(
     directory: Path | str,
     *,

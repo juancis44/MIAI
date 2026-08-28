@@ -1,4 +1,4 @@
-"""Training loop for a MIAI 2D binary segmentation model.
+"""Training loop for a MIAI 2D segmentation model, binary or multi-class.
 
 Re-exports :mod:`miai_segmentation.three_d.train` unchanged.
 :func:`~miai_segmentation.three_d.train.train_model` only calls

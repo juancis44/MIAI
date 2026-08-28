@@ -2,8 +2,9 @@
 
 Structurally identical to
 :mod:`miai_segmentation.three_d.infer` -- same sliding-window +
-threshold + write-back-with-source-metadata approach -- just with a
-2D (``roi_size: tuple[int, int]``) window instead of a 3D one. Kept as
+threshold-or-argmax + write-back-with-source-metadata approach -- just
+with a 2D (``roi_size: tuple[int, int]``) window instead of a 3D one.
+Binary or multi-class, per :attr:`InferenceConfig.num_classes`. Kept as
 its own module (rather than importing three_d's) because
 :class:`InferenceConfig` is a distinct, modality-specific public type
 (``roi_size``'s arity differs), per `docs/api_design.md`'s "Package
@@ -51,8 +52,19 @@ class InferenceConfig(MIAIBaseConfig):
         sw_batch_size: Number of windows evaluated per forward pass.
         overlap: Fractional overlap between adjacent windows.
         threshold: Sigmoid probability threshold above which a pixel is
-            predicted foreground.
+            predicted foreground. Ignored when ``num_classes > 1``
+            (multi-class prediction uses argmax instead, which needs no
+            threshold).
         device: ``"cpu"`` or ``"cuda"``.
+        num_classes: Number of segmentation classes, including
+            background. ``1`` (the default) is the original binary
+            path: sigmoid probabilities, thresholded at ``threshold``.
+            Any value ``> 1`` switches to softmax + argmax: each pixel
+            is assigned the class with the highest softmax probability,
+            producing an integer class-id mask with values in
+            ``[0, num_classes)`` instead of a 0/1 mask. Must match the
+            ``out_channels`` of the model that produced ``checkpoint_
+            path``.
     """
 
     roi_size: tuple[int, int] = (256, 256)
@@ -60,17 +72,25 @@ class InferenceConfig(MIAIBaseConfig):
     overlap: float = 0.25
     threshold: float = 0.5
     device: str = "cpu"
+    num_classes: int = 1
 
 
 def _predict_slice_mask(
     model: torch.nn.Module, inputs: torch.Tensor, config: InferenceConfig
 ) -> Any:
-    """Run one sliding-window forward pass and threshold it to a mask array.
+    """Run one sliding-window forward pass and reduce it to a mask array.
 
     Shared by :func:`run_inference` and :func:`run_case_inference` --
     identical per-slice prediction logic; only what happens to the
     resulting mask (write it directly vs. accumulate it into a volume)
-    differs between them.
+    differs between them. Binary (``config.num_classes == 1``):
+    sigmoid + threshold, a 0/1 mask, unchanged from this function's
+    original behavior. Multi-class (``config.num_classes > 1``):
+    softmax + argmax, an integer class-id mask in
+    ``[0, num_classes)`` -- argmax is monotonic under softmax, so the
+    softmax step is skipped, matching :func:`~miai_segmentation.three_d
+    .train.train_model`'s validation-time reasoning for the same
+    simplification.
     """
     raw_output = sliding_window_inference(
         inputs=inputs,
@@ -84,8 +104,11 @@ def _predict_slice_mask(
             "Expected the model to return a single tensor from "
             f"sliding_window_inference, got {type(raw_output).__name__}."
         )
-    probs = torch.sigmoid(raw_output)
-    mask = (probs > config.threshold).squeeze(0).squeeze(0).to(torch.uint8).cpu().numpy()
+    if config.num_classes > 1:
+        mask = raw_output.argmax(dim=1).squeeze(0).to(torch.uint8).cpu().numpy()
+    else:
+        probs = torch.sigmoid(raw_output)
+        mask = (probs > config.threshold).squeeze(0).squeeze(0).to(torch.uint8).cpu().numpy()
     return mask
 
 

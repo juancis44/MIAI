@@ -8,13 +8,14 @@ from monai.data import DataLoader, Dataset, decollate_batch
 from monai.metrics import DiceMetric
 from monai.transforms import AsDiscrete, Compose, EnsureTyped
 
-from conftest import make_synthetic_volume_pair
+from conftest import make_synthetic_multiclass_volume_pair, make_synthetic_volume_pair
 from miai_segmentation.exceptions import SegmentationError
 from miai_segmentation.three_d.models import UNetConfig, build_unet
 from miai_segmentation.three_d.train import TrainingConfig, train_model
 from miai_transforms.sitk_transforms import LoadImageSitkd
 
 _UNET_CONFIG = UNetConfig(channels=(4, 8), strides=(2,), num_res_units=0)
+_MULTICLASS_UNET_CONFIG = UNetConfig(channels=(4, 8), strides=(2,), num_res_units=0, out_channels=4)
 _TRANSFORMS = Compose(
     [
         LoadImageSitkd(keys=["image", "label"]),
@@ -119,4 +120,79 @@ def test_train_model_actually_learns_to_segment(tmp_path: Path) -> None:
     untrained_dice = _dice_on_loader(build_unet(_UNET_CONFIG), val_loader)
 
     assert trained_dice > 0.5
+    assert trained_dice > untrained_dice
+
+
+def _make_multiclass_loader(tmp_path: Path, n_cases: int, num_classes: int = 4) -> DataLoader:
+    data = []
+    for i in range(n_cases):
+        image_path, label_path = make_synthetic_multiclass_volume_pair(
+            tmp_path, name=f"case{i}", num_classes=num_classes
+        )
+        data.append({"image": str(image_path), "label": str(label_path)})
+    dataset = Dataset(data=data, transform=_TRANSFORMS)
+    return DataLoader(dataset, batch_size=1, shuffle=False, num_workers=0)
+
+
+@pytest.mark.slow
+def test_train_model_multiclass_writes_checkpoint(tmp_path: Path) -> None:
+    """``num_classes > 1`` switches to the softmax/argmax path end to end."""
+    train_loader = _make_multiclass_loader(tmp_path / "train", 2)
+    val_loader = _make_multiclass_loader(tmp_path / "val", 1)
+
+    model = build_unet(_MULTICLASS_UNET_CONFIG)
+    config = TrainingConfig(max_epochs=2, val_interval=1, device="cpu", num_classes=4)
+
+    checkpoint_path = train_model(
+        model, train_loader, val_loader, config, str(tmp_path / "checkpoints")
+    )
+
+    assert checkpoint_path.exists()
+    fresh_model = build_unet(_MULTICLASS_UNET_CONFIG)
+    fresh_model.load_state_dict(torch.load(checkpoint_path, map_location="cpu"))
+
+
+def _multiclass_dice_on_loader(
+    model: torch.nn.Module, loader: DataLoader, num_classes: int
+) -> float:
+    """Mirrors train_model's multi-class validation scoring, computed independently."""
+    model.eval()
+    dice_metric = DiceMetric(include_background=False, reduction="mean", get_not_nans=False)
+    post_pred = Compose([AsDiscrete(argmax=True, to_onehot=num_classes)])
+    post_label = Compose([AsDiscrete(to_onehot=num_classes)])
+    with torch.no_grad():
+        for batch in loader:
+            outputs = model(batch["image"])
+            preds = [post_pred(i) for i in decollate_batch(outputs)]
+            labels = [post_label(i) for i in decollate_batch(batch["label"])]
+            dice_metric(y_pred=preds, y=labels)
+    aggregated = dice_metric.aggregate()
+    metric_tensor = aggregated[0] if isinstance(aggregated, tuple) else aggregated
+    dice_metric.reset()
+    return float(metric_tensor.item())
+
+
+@pytest.mark.slow
+def test_train_model_multiclass_actually_learns_to_segment(tmp_path: Path) -> None:
+    """Same intent as test_train_model_actually_learns_to_segment, multi-class."""
+    train_loader = _make_multiclass_loader(tmp_path / "train", n_cases=2)
+    val_loader = _make_multiclass_loader(tmp_path / "val", n_cases=1)
+
+    model = build_unet(_MULTICLASS_UNET_CONFIG)
+    config = TrainingConfig(
+        max_epochs=60, learning_rate=1e-2, val_interval=1, device="cpu", num_classes=4
+    )
+    checkpoint_path = train_model(
+        model, train_loader, val_loader, config, str(tmp_path / "checkpoints")
+    )
+
+    trained_model = build_unet(_MULTICLASS_UNET_CONFIG)
+    trained_model.load_state_dict(torch.load(checkpoint_path, map_location="cpu"))
+    trained_dice = _multiclass_dice_on_loader(trained_model, val_loader, num_classes=4)
+
+    untrained_dice = _multiclass_dice_on_loader(
+        build_unet(_MULTICLASS_UNET_CONFIG), val_loader, num_classes=4
+    )
+
+    assert trained_dice > 0.3
     assert trained_dice > untrained_dice

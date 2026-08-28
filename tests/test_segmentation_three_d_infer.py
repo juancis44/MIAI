@@ -16,6 +16,7 @@ from miai_segmentation.three_d.models import UNetConfig, build_unet
 from miai_transforms.sitk_transforms import LoadImageSitkd
 
 _UNET_CONFIG = UNetConfig(channels=(4, 8), strides=(2,), num_res_units=0)
+_MULTICLASS_UNET_CONFIG = UNetConfig(channels=(4, 8), strides=(2,), num_res_units=0, out_channels=4)
 _IMAGE_ONLY_TRANSFORMS = Compose(
     [
         LoadImageSitkd(keys=["image"]),
@@ -56,6 +57,37 @@ def test_run_inference_writes_prediction_matching_reference_geometry(tmp_path: P
 
     pred_array = sitk.GetArrayFromImage(prediction_image)
     assert set(pred_array.flatten().tolist()).issubset({0, 1})
+
+
+@pytest.mark.slow
+def test_run_inference_multiclass_writes_class_id_mask(tmp_path: Path) -> None:
+    """``num_classes > 1`` switches to softmax + argmax, producing an
+    integer class-id mask instead of a 0/1 one -- mirrors the identical
+    test for miai_segmentation.two_d.infer."""
+    image_path, _ = make_synthetic_volume_pair(tmp_path / "data", size=(16, 16, 16))
+
+    model = build_unet(_MULTICLASS_UNET_CONFIG)
+    checkpoint_path = tmp_path / "model.pt"
+    torch.save(model.state_dict(), checkpoint_path)
+
+    test_ds = Dataset(data=[{"image": str(image_path)}], transform=_IMAGE_ONLY_TRANSFORMS)
+    test_loader = DataLoader(test_ds, batch_size=1, num_workers=0)
+
+    fresh_model = build_unet(_MULTICLASS_UNET_CONFIG)
+    config = InferenceConfig(
+        roi_size=(16, 16, 16), sw_batch_size=1, overlap=0.0, device="cpu", num_classes=4
+    )
+    prediction_paths = run_inference(
+        fresh_model,
+        test_loader,
+        [str(image_path)],
+        str(checkpoint_path),
+        config,
+        str(tmp_path / "predictions"),
+    )
+
+    pred_array = sitk.GetArrayFromImage(sitk.ReadImage(str(prediction_paths[0])))
+    assert set(pred_array.flatten().tolist()).issubset({0, 1, 2, 3})
 
 
 def test_run_inference_mismatched_source_paths_raises(tmp_path: Path) -> None:

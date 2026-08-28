@@ -297,25 +297,105 @@ next targets -- multi-class labels (RV / myocardium / LV instead of
 binary foreground) and explicit regularization remain the two levers
 this session deliberately did not pull.
 
+## Fifth iteration: multi-class (RV/myocardium/LV)
+
+Every prior iteration merged ACDC's three annotated structures into
+one "whole heart" foreground label -- a deliberate scope cut, not a
+capability gap discovered along the way (see the module docstring's
+"Binary, not multi-class" note through the fourth iteration). Binary
+segmentation was enough to validate the pipeline and the 2D-per-slice
+modeling choice cheaply, but it also hides the question that actually
+matters clinically: RV and LV volumes/ejection fractions are
+diagnostic quantities in their own right, and the myocardium is a
+distinct tissue with its own pathology. This iteration is a real
+feature addition to `miai_segmentation` and `miai_evaluation`, not
+just another `validate_acdc.py` config change: `TrainingConfig`,
+`InferenceConfig` (both `two_d` and `three_d`), and `MetricsConfig`
+all gained a `num_classes` field (default `1`, so every existing
+binary caller -- including every prior iteration above -- keeps
+working byte-for-byte unchanged). Setting it above `1` switches
+training to softmax logits and `DiceLoss(softmax=True,
+to_onehot_y=True)` instead of sigmoid/threshold, inference to argmax
+instead of a probability threshold, and evaluation to one-hot-encoded,
+background-excluded (`include_background=False`) metrics -- plus a new
+per-class Dice breakdown (`dice_class_1`/`dice_class_2`/
+`dice_class_3`) so a single macro-averaged number can't hide which
+structure the model struggles with most.
+
+No new data, no new staging, and no binarization step any more --
+ACDC's ground truth already encodes exactly the four classes trained
+on here (background=0, RV=1, myocardium=2, LV=3), so the label
+preparation step now just casts to `uint8`. Otherwise unchanged from
+the fourth iteration: full 150-patient/300-case dataset, 2D per-slice
+UNet (now `out_channels=4`), patient-level 180/60/60 split, same
+augmentation, 25 epochs, CPU-only.
+
+| Split | Cases | Dice (macro, foreground only) |
+|---|---|---|
+| Validation (best epoch, 25) | 60 | 0.83 |
+| Held-out test | 60 | 0.72 |
+
+Per-class mean test Dice tells a more useful story than the macro
+average alone:
+
+| Structure | Mean test Dice |
+|---|---|
+| Right ventricle (RV) | 0.58 |
+| Myocardium (Myo) | 0.72 |
+| Left ventricle (LV) | 0.86 |
+
+**The honest read: multi-class is harder than binary, as expected, and
+the difficulty is not spread evenly across structures.** Macro test
+Dice (0.72) is lower than the fourth iteration's binary "whole heart"
+result (0.82) -- unsurprising, since binary Dice gets to call any
+correctly-identified heart pixel a win regardless of which structure
+it belongs to, while this metric requires getting the *class* right
+too, and RV in particular is a thin, crescent-shaped structure that is
+intrinsically harder to segment precisely than the LV's near-circular,
+high-contrast blood pool -- a well-known pattern in the cardiac
+segmentation literature, not a bug. LV Dice (0.86) is close to the
+binary result, meaning nearly all of the macro-average gap comes from
+RV and, to a lesser extent, myocardium. Per-case test Dice (60 cases)
+has a median of 0.74 and ranges from 0.18 to 0.87; 3 cases score below
+0.5, the weakest (`patient142_frame12`, Dice 0.18) driven by a
+correspondingly low score on every structure at once (RV 0.12, Myo
+0.15, LV 0.26) rather than one bad structure -- consistent with a
+genuinely hard slice/frame (thin, faint, or ambiguous anatomy) rather
+than a class-specific failure mode. Training also hit one late,
+transient instability (epoch 23's validation Dice collapsed to 0.0,
+recovering partially by epoch 25) -- harmless here since checkpoint
+selection only keeps strictly-improving epochs (the epoch 22
+checkpoint, val Dice 0.83, is what test was scored against), but a
+concrete example of exactly the kind of instability explicit
+regularization (dropout, weight decay -- still not exposed by
+`TrainingConfig`) is meant to guard against, and the clearest evidence
+yet that it remains the natural next lever, not merely a nice-to-have.
+
 ## Reproducing this
 
-```bash
-python examples/validate_acdc.py \
-    --data-dir /path/to/ACDC \
-    --output-dir examples/output/acdc_validation \
-    --max-epochs 40
-```
-
-To reproduce the fourth iteration's full-150-patient result specifically:
+The script as it stands today runs the fifth iteration -- multi-class,
+150 patients, 25 epochs:
 
 ```bash
 python examples/validate_acdc.py \
     --data-dir /path/to/ACDC \
-    --output-dir examples/output/acdc_validation_150 \
-    --max-epochs 25
+    --output-dir examples/output/acdc_validation
 ```
+
+(`--max-epochs` now defaults to `25`, matching what this iteration
+used; earlier iterations used different epoch budgets, noted inline
+above and reproducible by passing `--max-epochs` explicitly.) Earlier
+binary-only iterations are not reproducible from the current script
+verbatim -- `_NUM_CLASSES` is set to `4` at module scope, not exposed
+as a CLI flag -- but every metric/config field this section describes
+for iterations 1-4 stayed real, working binary behavior in
+`miai_segmentation`/`miai_evaluation` (`num_classes=1` is still each
+new field's default), so reproducing a binary run means passing
+`num_classes=1` to `TrainingConfig`/`InferenceConfig`/`MetricsConfig`
+in a copy of the script with `_NUM_CLASSES` set back to `1` (and
+`_ARCHITECTURE`'s `out_channels` back to `1`).
 
 Outputs land under `--output-dir` (git-ignored, like every other
-`examples/output/` run): binarized labels, preprocessed/padded
-images and labels, the manifest split, the checkpoint, per-case
-predictions, and `evaluation_report.json`.
+`examples/output/` run): prepared labels, preprocessed/padded images
+and labels, the manifest split, the checkpoint, per-case predictions,
+and `evaluation_report.json`.

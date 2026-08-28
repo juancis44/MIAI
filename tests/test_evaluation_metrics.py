@@ -121,3 +121,82 @@ def test_compute_case_metrics_new_metrics_off_by_default() -> None:
     assert "sensitivity" not in metrics
     assert "specificity" not in metrics
     assert "volume_similarity" not in metrics
+
+
+def _multiclass_ground_truth() -> torch.Tensor:
+    """Three disjoint foreground classes (1, 2, 3) plus background (0),
+    the same integer-class-id convention ACDC's own ground truth uses
+    (background, RV, myocardium, LV)."""
+    mask = torch.zeros(1, 1, 8, 8, 8)
+    mask[:, :, 0:2, 0:2, 0:2] = 1.0
+    mask[:, :, 3:5, 3:5, 3:5] = 2.0
+    mask[:, :, 6:8, 6:8, 6:8] = 3.0
+    return mask
+
+
+def test_compute_case_metrics_multiclass_perfect_match() -> None:
+    ground_truth = _multiclass_ground_truth()
+    metrics = compute_case_metrics(
+        ground_truth,
+        ground_truth.clone(),
+        MetricsConfig(include_dice=True, include_hausdorff=False, num_classes=4),
+    )
+
+    assert set(metrics) == {"dice", "dice_class_1", "dice_class_2", "dice_class_3"}
+    assert metrics["dice"] == pytest.approx(1.0)
+    assert metrics["dice_class_1"] == pytest.approx(1.0)
+    assert metrics["dice_class_2"] == pytest.approx(1.0)
+    assert metrics["dice_class_3"] == pytest.approx(1.0)
+
+
+def test_compute_case_metrics_multiclass_reports_per_class_breakdown() -> None:
+    """One class entirely missed -- the per-class Dice should isolate
+    that failure instead of it being averaged away, and the overall
+    ``dice`` should be the mean across foreground classes only (never
+    touching the -- correctly predicted, and much larger -- background
+    class, which excluding it from ``include_background`` guards
+    against)."""
+    ground_truth = _multiclass_ground_truth()
+    prediction = ground_truth.clone()
+    prediction[:, :, 0:2, 0:2, 0:2] = 0.0  # class 1 predicted as background instead
+
+    metrics = compute_case_metrics(
+        prediction,
+        ground_truth,
+        MetricsConfig(include_dice=True, include_hausdorff=False, num_classes=4),
+    )
+
+    assert metrics["dice_class_1"] == pytest.approx(0.0)
+    assert metrics["dice_class_2"] == pytest.approx(1.0)
+    assert metrics["dice_class_3"] == pytest.approx(1.0)
+    assert metrics["dice"] == pytest.approx(2.0 / 3.0)
+
+
+def test_compute_case_metrics_multiclass_no_per_class_keys_when_dice_disabled() -> None:
+    ground_truth = _multiclass_ground_truth()
+    metrics = compute_case_metrics(
+        ground_truth,
+        ground_truth.clone(),
+        MetricsConfig(include_dice=False, include_hausdorff=False, include_iou=True, num_classes=4),
+    )
+
+    assert "dice" not in metrics
+    assert not any(key.startswith("dice_class_") for key in metrics)
+    assert metrics["iou"] == pytest.approx(1.0)
+
+
+def test_compute_case_metrics_multiclass_volume_similarity_ignores_class_identity() -> None:
+    """Multi-class volume similarity compares total foreground volume
+    (any nonzero class), not per-class counts -- swapping which class a
+    region belongs to, without changing its size, should not move it."""
+    ground_truth = _multiclass_ground_truth()
+    prediction = ground_truth.clone()
+    prediction[prediction == 1.0] = 2.0  # relabel class 1's voxels as class 2
+
+    metrics = compute_case_metrics(
+        prediction,
+        ground_truth,
+        MetricsConfig(include_dice=False, include_volume_similarity=True, num_classes=4),
+    )
+
+    assert metrics["volume_similarity"] == pytest.approx(1.0)

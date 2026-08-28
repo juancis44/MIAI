@@ -1,10 +1,17 @@
-"""Training loop for a MIAI 3D binary segmentation model.
+"""Training loop for a MIAI 3D segmentation model, binary or multi-class.
 
 Dimension-agnostic in practice (it only calls ``model(inputs)`` and
 scores the result), but lives under :mod:`miai_segmentation.three_d`
 alongside the architectures it is meant to train -- the 2D/2.5D
 modalities may need their own variants later (e.g. 2.5D reassembling
 per-slice batches into a volume before computing Dice).
+
+Binary by default (``TrainingConfig.num_classes = 1``): sigmoid logits,
+``DiceLoss(sigmoid=True)``, 0.5-threshold post-processing -- unchanged
+from this module's original behavior. Setting ``num_classes`` above 1
+switches every step (loss, post-processing, and the validation Dice
+used for checkpoint selection) to a softmax/argmax multi-class path;
+see :class:`TrainingConfig` for the details.
 """
 
 from __future__ import annotations
@@ -38,6 +45,22 @@ class TrainingConfig(MIAIBaseConfig):
         checkpoint_name: Filename for the best-validation-Dice
             checkpoint, written under ``train_model``'s
             ``checkpoint_dir`` argument.
+        num_classes: Number of segmentation classes, including
+            background. ``1`` (the default) trains a binary model --
+            sigmoid logits, ``DiceLoss(sigmoid=True)``, and 0.5-
+            threshold post-processing, unchanged from this function's
+            original, binary-only behavior. Any value ``> 1`` switches
+            to a multi-class path: softmax logits, ``DiceLoss(softmax
+            =True, to_onehot_y=True)`` (the model's ``out_channels``
+            must equal ``num_classes``, and ``batch["label"]`` must be
+            a single-channel integer class map with values in
+            ``[0, num_classes)``, not already one-hot), argmax +
+            one-hot post-processing for both predictions and labels,
+            and a validation Dice metric that excludes the background
+            channel (``include_background=False``) -- so checkpoint
+            selection is driven by how well the model segments the
+            actual structures of interest, not by the (typically much
+            larger, so numerically dominant) background class.
     """
 
     max_epochs: int = 100
@@ -45,6 +68,7 @@ class TrainingConfig(MIAIBaseConfig):
     val_interval: int = 1
     device: str = "cpu"
     checkpoint_name: str = "best_model.pt"
+    num_classes: int = 1
 
 
 def train_model(
@@ -54,14 +78,16 @@ def train_model(
     config: TrainingConfig,
     checkpoint_dir: str,
 ) -> Path:
-    """Train a binary segmentation model and checkpoint the best epoch.
+    """Train a segmentation model and checkpoint the best epoch.
 
-    Runs a standard supervised loop: :class:`monai.losses.DiceLoss` on
-    sigmoid logits, Adam optimization, and — if ``val_loader`` is given
-    — validation every ``config.val_interval`` epochs scored with
-    :class:`monai.metrics.DiceMetric`. The checkpoint with the highest
-    validation Dice is kept; without a validation loader, the final
-    epoch's weights are checkpointed instead.
+    Runs a standard supervised loop: :class:`monai.losses.DiceLoss`
+    (sigmoid, or softmax + one-hot for multi-class -- see
+    :attr:`TrainingConfig.num_classes`), Adam optimization, and -- if
+    ``val_loader`` is given -- validation every ``config.val_interval``
+    epochs scored with :class:`monai.metrics.DiceMetric`. The
+    checkpoint with the highest validation Dice is kept; without a
+    validation loader, the final epoch's weights are checkpointed
+    instead.
 
     Args:
         model: The model to train (e.g. from
@@ -87,11 +113,18 @@ def train_model(
     device = torch.device(config.device)
     model = model.to(device)
 
-    loss_function = DiceLoss(sigmoid=True, include_background=True)
+    multiclass = config.num_classes > 1
+    if multiclass:
+        loss_function = DiceLoss(to_onehot_y=True, softmax=True, include_background=True)
+        dice_metric = DiceMetric(include_background=False, reduction="mean", get_not_nans=False)
+        post_pred = Compose([AsDiscrete(argmax=True, to_onehot=config.num_classes)])
+        post_label = Compose([AsDiscrete(to_onehot=config.num_classes)])
+    else:
+        loss_function = DiceLoss(sigmoid=True, include_background=True)
+        dice_metric = DiceMetric(include_background=True, reduction="mean", get_not_nans=False)
+        post_pred = Compose([AsDiscrete(threshold=0.5)])
+        post_label = Compose([AsDiscrete(threshold=0.5)])
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
-    dice_metric = DiceMetric(include_background=True, reduction="mean", get_not_nans=False)
-    post_pred = Compose([AsDiscrete(threshold=0.5)])
-    post_label = Compose([AsDiscrete(threshold=0.5)])
 
     out_dir = ensure_dir(checkpoint_dir)
     checkpoint_path = out_dir / config.checkpoint_name
@@ -130,7 +163,13 @@ def train_model(
                 for batch in val_loader:
                     inputs = batch["image"].to(device)
                     labels = batch["label"].to(device)
-                    outputs = torch.sigmoid(model(inputs))
+                    raw_outputs = model(inputs)
+                    # Multi-class: argmax is monotonic under softmax, so
+                    # post_pred's AsDiscrete(argmax=True) can operate
+                    # directly on raw logits -- no need to apply softmax
+                    # first. Binary: post_pred thresholds a probability,
+                    # so sigmoid must be applied here, as before.
+                    outputs = raw_outputs if multiclass else torch.sigmoid(raw_outputs)
                     outputs_list = [post_pred(i) for i in decollate_batch(outputs)]
                     labels_list = [post_label(i) for i in decollate_batch(labels)]
                     dice_metric(y_pred=outputs_list, y=labels_list)
