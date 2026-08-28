@@ -136,6 +136,29 @@ depth, and 25-epoch budget -- so any change in the result isolates the
 effect of regularization, not a confound from also changing the data
 or architecture. See ``docs/real_data_validation.md`` for the result.
 
+**Seventh iteration: per-class breakdown for every metric, not just
+Dice.** The fifth iteration added a per-class ``dice_class_{c}``
+breakdown, but every other opted-in metric (Hausdorff distance, IoU,
+sensitivity, specificity, volume similarity) still only reported one
+macro-averaged number even in multi-class mode -- hiding, e.g.,
+whether the RV's lower Dice comes with a correspondingly worse
+Hausdorff distance (a genuinely worse boundary) or is driven mostly by
+size/overlap rather than boundary shape. :func:`miai_evaluation.
+metrics.compute_case_metrics` now reports a ``{metric}_class_{c}``
+entry for every opted-in metric in multi-class mode, the same pattern
+``dice_class_{c}`` already used -- ``hausdorff_distance_class_{c}``,
+``iou_class_{c}``, ``sensitivity_class_{c}``, ``specificity_
+class_{c}``, and ``volume_similarity_class_{c}``, each computed on
+that class's one-hot channel alone, not derived from the macro
+average. No new data, no new training run -- this iteration only
+changes what ``compute_case_metrics`` reports for the same predictions
+the sixth iteration already produced, so ``run_validation`` re-scores
+the sixth iteration's checkpoint against the (unchanged) evaluation
+config rather than re-training. ``named_class_metrics`` (formerly
+``named_class_dice``) now covers all six metrics via
+``_PER_CLASS_METRIC_PREFIXES``, not just Dice. See
+``docs/real_data_validation.md`` for the result.
+
 Run:
     python examples/validate_acdc.py --data-dir /path/to/ACDC \\
         --output-dir examples/output/acdc_validation
@@ -245,11 +268,27 @@ _TEST_TRANSFORMS = TransformConfig(
 _NUM_CLASSES = 4
 
 #: Human-readable names for :func:`miai_evaluation.metrics.
-#: compute_case_metrics`'s generic ``dice_class_{c}`` keys -- kept here,
-#: not in :mod:`miai_evaluation`, since that module stays
+#: compute_case_metrics`'s generic ``{metric}_class_{c}`` keys -- kept
+#: here, not in :mod:`miai_evaluation`, since that module stays
 #: dataset-agnostic on purpose (see ``MetricsConfig.num_classes``'s
 #: docstring) and this mapping is ACDC-specific domain knowledge.
 _CLASS_NAMES = {1: "RV", 2: "Myo", 3: "LV"}
+
+#: Metric name prefixes :func:`miai_evaluation.metrics.
+#: compute_case_metrics` reports a ``{prefix}_class_{c}`` per-class
+#: breakdown for, in multi-class mode -- see the module docstring's
+#: "Seventh iteration" section. Kept as one list here so
+#: ``run_validation``'s ``named_class_metrics`` mapping covers every
+#: metric this run opts into automatically, without hardcoding "dice"
+#: as the only one that gets a per-class name.
+_PER_CLASS_METRIC_PREFIXES = (
+    "dice",
+    "hausdorff_distance",
+    "iou",
+    "sensitivity",
+    "specificity",
+    "volume_similarity",
+)
 
 #: Dropout probability inside each residual unit's ADN block -- see the
 #: module docstring's "Sixth iteration" section. ``0.2`` is a
@@ -628,21 +667,25 @@ def run_validation(data_dir: Path, output_dir: Path, max_epochs: int) -> dict[st
     metrics = context.require("metrics")
 
     # Human-readable RV/Myo/LV names for compute_case_metrics's generic
-    # dice_class_{c} keys -- see _CLASS_NAMES for why this mapping lives
-    # here, not in miai_evaluation.
-    named_class_dice = {
-        f"dice_{name.lower()}": metrics["mean"][f"dice_class_{class_id}"]
+    # {metric}_class_{c} keys -- see _CLASS_NAMES for why this mapping
+    # lives here, not in miai_evaluation. Covers every metric this run
+    # opted into (dice, hausdorff_distance, iou, sensitivity,
+    # specificity, volume_similarity), not just Dice -- see the module
+    # docstring's "Seventh iteration" section.
+    named_class_metrics = {
+        f"{metric_prefix}_{name.lower()}": metrics["mean"][f"{metric_prefix}_class_{class_id}"]
+        for metric_prefix in _PER_CLASS_METRIC_PREFIXES
         for class_id, name in _CLASS_NAMES.items()
-        if f"dice_class_{class_id}" in metrics["mean"]
+        if f"{metric_prefix}_class_{class_id}" in metrics["mean"]
     }
-    if named_class_dice:
-        logger.info("Per-class mean test Dice: %s", named_class_dice)
+    if named_class_metrics:
+        logger.info("Per-class mean test metrics: %s", named_class_metrics)
 
     return {
         "manifest_sizes": {k: len(v) for k, v in manifest.items()},
         "checkpoint": context.require("model_checkpoint_path"),
         "mean_metrics": metrics["mean"],
-        "named_class_dice": named_class_dice,
+        "named_class_metrics": named_class_metrics,
         "per_case": metrics["per_case"],
     }
 

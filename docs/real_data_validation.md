@@ -457,6 +457,60 @@ result (0.75) is expected and explained by the fifth iteration's
 analysis (multi-class inherently requires getting the class right, not
 just the pixel), not a new problem this iteration introduced.
 
+## Seventh iteration: per-class breakdown for every metric
+
+Every prior multi-class iteration reported a per-class breakdown for
+Dice (`dice_class_1`/`dice_class_2`/`dice_class_3`), but the other five
+opted-in metrics (Hausdorff distance, IoU, sensitivity, specificity,
+volume similarity) still only reported one macro-averaged number even
+in multi-class mode -- hiding, for instance, whether the RV's lower
+Dice comes with a correspondingly worse Hausdorff distance (a genuinely
+worse boundary) or is driven mostly by size/overlap rather than
+boundary shape. `miai_evaluation.metrics.compute_case_metrics` now
+reports a `{metric}_class_{c}` entry for every opted-in metric in
+multi-class mode, the same pattern `dice_class_{c}` already used.
+
+No new training run for this iteration -- it only changes what
+`compute_case_metrics` reports, so the sixth iteration's checkpoint and
+predictions were re-scored against the same test set with the expanded
+metric config, rather than retraining from scratch.
+
+Per-class mean test metrics (sixth iteration's checkpoint, 60 test cases):
+
+| Metric | RV | Myo | LV | Macro |
+|---|---|---|---|---|
+| Dice | 0.70 | 0.71 | 0.83 | 0.75 |
+| Hausdorff distance (HD95, mm, lower is better) | 51.1 | 44.7 | 42.9 | 46.2 |
+| IoU | 0.56 | 0.56 | 0.74 | 0.62 |
+| Sensitivity | 0.75 | 0.75 | 0.92 | 0.80 |
+| Specificity | 0.997 | 0.997 | 0.998 | 0.997 |
+| Volume similarity | 0.87 | 0.91 | 0.89 | 0.93 |
+
+**The per-class breakdown mostly confirms the same RV-is-hardest story
+Dice alone already told, but with one genuine surprise.** IoU and
+sensitivity track Dice closely (RV and Myo both clearly behind LV on
+all three), consistent with RV's lower Dice being a real boundary/
+overlap problem, not an artifact of the Dice formula specifically.
+Specificity is uniformly excellent (>=0.997) across all three
+structures -- expected, since specificity is dominated by the vast
+majority-background voxels any of the three foreground classes leaves
+alone, so it was never going to discriminate between structures.
+
+**The surprise is volume similarity: RV (0.87) is the *worst*-scoring
+structure by this metric, not LV (0.89) as every overlap-based metric
+would suggest, and Myo (0.91) is actually the best.** Volume
+similarity ignores spatial overlap entirely and only compares total
+voxel counts -- so this says the model's RV *volume estimates*
+(clinically relevant on their own, e.g. for ejection fraction) are
+noisier case-to-case than its Myo volume estimates, even though its
+Myo *segmentation shape* (Dice/IoU) is essentially tied with RV's. The
+practical read: a downstream consumer that only needs RV/LV/Myo
+*volumes* (not precise boundaries) should not assume Dice ranks
+structures the same way volume similarity would -- they answer
+different clinical questions, and this iteration is the first evidence
+in this validation series that they can actually disagree about which
+structure is "hardest."
+
 ## Reproducing this
 
 The script as it stands today runs the sixth iteration -- multi-class,

@@ -200,3 +200,113 @@ def test_compute_case_metrics_multiclass_volume_similarity_ignores_class_identit
     )
 
     assert metrics["volume_similarity"] == pytest.approx(1.0)
+
+
+def _all_metrics_multiclass_config() -> MetricsConfig:
+    return MetricsConfig(
+        include_dice=True,
+        include_hausdorff=True,
+        include_iou=True,
+        include_sensitivity=True,
+        include_specificity=True,
+        include_volume_similarity=True,
+        num_classes=4,
+    )
+
+
+def test_compute_case_metrics_multiclass_every_metric_gets_per_class_breakdown() -> None:
+    """Every opted-in metric, not just Dice, reports one ``{metric}_
+    class_{c}`` entry per foreground class in multi-class mode --
+    dice_class_{c} was the only one before this test was added."""
+    ground_truth = _multiclass_ground_truth()
+    metrics = compute_case_metrics(
+        ground_truth, ground_truth.clone(), _all_metrics_multiclass_config()
+    )
+
+    macro_keys = {
+        "dice",
+        "hausdorff_distance",
+        "iou",
+        "sensitivity",
+        "specificity",
+        "volume_similarity",
+    }
+    per_class_keys = {
+        f"{prefix}_class_{class_id}"
+        for prefix in (
+            "dice",
+            "hausdorff_distance",
+            "iou",
+            "sensitivity",
+            "specificity",
+            "volume_similarity",
+        )
+        for class_id in (1, 2, 3)
+    }
+    assert set(metrics) == macro_keys | per_class_keys
+
+    # Perfect match: every overlap-based per-class metric is at its
+    # ceiling, and every per-class Hausdorff distance is 0 (identical
+    # surfaces).
+    for class_id in (1, 2, 3):
+        assert metrics[f"dice_class_{class_id}"] == pytest.approx(1.0)
+        assert metrics[f"iou_class_{class_id}"] == pytest.approx(1.0)
+        assert metrics[f"sensitivity_class_{class_id}"] == pytest.approx(1.0)
+        assert metrics[f"specificity_class_{class_id}"] == pytest.approx(1.0)
+        assert metrics[f"volume_similarity_class_{class_id}"] == pytest.approx(1.0)
+        assert metrics[f"hausdorff_distance_class_{class_id}"] == pytest.approx(0.0)
+
+
+def test_compute_case_metrics_multiclass_per_class_breakdown_isolates_a_missed_class() -> None:
+    """Same intent as the Dice-only version above
+    (test_compute_case_metrics_multiclass_reports_per_class_breakdown),
+    generalized to every metric: missing class 1 entirely should show
+    up as a bad score on every *_class_1 metric, while class 2 and 3
+    (untouched) stay perfect -- the whole point of per-class reporting
+    over a single macro-averaged number."""
+    ground_truth = _multiclass_ground_truth()
+    prediction = ground_truth.clone()
+    prediction[:, :, 0:2, 0:2, 0:2] = 0.0  # class 1 predicted as background instead
+
+    metrics = compute_case_metrics(prediction, ground_truth, _all_metrics_multiclass_config())
+
+    assert metrics["dice_class_1"] == pytest.approx(0.0)
+    assert metrics["iou_class_1"] == pytest.approx(0.0)
+    assert metrics["sensitivity_class_1"] == pytest.approx(0.0)
+    assert metrics["volume_similarity_class_1"] == pytest.approx(0.0)
+    # A fully-empty prediction channel is MONAI's own "no surface to
+    # measure a distance from" edge case (it warns "the prediction of
+    # class 0 is all 0" and returns 0.0 here rather than NaN/inf, this
+    # module's own convention only kicks in for volume_similarity's
+    # both-empty case) -- not a MIAI-specific choice, just documenting
+    # the observed behavior so this isn't mistaken for a bug later.
+    assert metrics["hausdorff_distance_class_1"] == pytest.approx(0.0)
+
+    for class_id in (2, 3):
+        assert metrics[f"dice_class_{class_id}"] == pytest.approx(1.0)
+        assert metrics[f"iou_class_{class_id}"] == pytest.approx(1.0)
+        assert metrics[f"sensitivity_class_{class_id}"] == pytest.approx(1.0)
+        assert metrics[f"volume_similarity_class_{class_id}"] == pytest.approx(1.0)
+        assert metrics[f"hausdorff_distance_class_{class_id}"] == pytest.approx(0.0)
+
+
+def test_compute_case_metrics_multiclass_no_new_per_class_keys_when_metric_disabled() -> None:
+    """Generalizes test_compute_case_metrics_multiclass_no_per_class_keys_when_dice_disabled:
+    each metric's per-class breakdown is gated by that metric's own
+    include_* flag, independent of the others."""
+    ground_truth = _multiclass_ground_truth()
+    metrics = compute_case_metrics(
+        ground_truth,
+        ground_truth.clone(),
+        MetricsConfig(
+            include_dice=False,
+            include_hausdorff=False,
+            include_iou=True,
+            include_sensitivity=False,
+            include_specificity=False,
+            include_volume_similarity=False,
+            num_classes=4,
+        ),
+    )
+
+    assert set(metrics) == {"iou", "iou_class_1", "iou_class_2", "iou_class_3"}

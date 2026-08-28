@@ -75,7 +75,18 @@ class MetricsConfig(MIAIBaseConfig):
             on purpose -- callers that know their own class semantics
             (like ``examples/validate_acdc.py``) are expected to
             relabel these for human-readable reporting, not this
-            module.
+            module. Every other opted-in metric gets the same
+            per-class treatment in multi-class mode: ``include_
+            hausdorff`` additionally reports ``hausdorff_distance_
+            class_{c}``, ``include_iou`` reports ``iou_class_{c}``,
+            ``include_sensitivity``/``include_specificity`` report
+            ``sensitivity_class_{c}``/``specificity_class_{c}``, and
+            ``include_volume_similarity`` reports ``volume_
+            similarity_class_{c}`` -- each computed the same way as
+            ``dice_class_{c}``: on that class's one-hot channel alone
+            (prediction and ground truth both restricted to \"is this
+            voxel class ``c``\"), not derived from the macro-averaged
+            value.
     """
 
     include_dice: bool = True
@@ -107,12 +118,14 @@ def compute_case_metrics(
     Returns:
         A dict of metric name -> value (``"dice"``, ``"hausdorff_
         distance"``, and so on, depending on ``config`` -- plus one
-        ``dice_class_{c}`` entry per foreground class when ``config.
-        num_classes > 1`` and ``config.include_dice`` is set). Every
-        metric is ``NaN`` for a case/class where neither the
-        prediction nor the ground truth has any matching voxels --
-        that is MONAI's own convention for an undefined comparison,
-        not a MIAI-specific one.
+        ``{metric}_class_{c}`` entry per foreground class per opted-in
+        metric when ``config.num_classes > 1``, e.g. ``dice_class_1``,
+        ``hausdorff_distance_class_1``, ``iou_class_1``, ``sensitivity_
+        class_1``, ``specificity_class_1``, ``volume_similarity_
+        class_1``). Every metric is ``NaN`` for a case/class where
+        neither the prediction nor the ground truth has any matching
+        voxels -- that is MONAI's own convention for an undefined
+        comparison, not a MIAI-specific one.
     """
     multiclass = config.num_classes > 1
     if multiclass:
@@ -155,6 +168,14 @@ def compute_case_metrics(
         hausdorff_tensor = aggregated[0] if isinstance(aggregated, tuple) else aggregated
         metrics["hausdorff_distance"] = float(hausdorff_tensor.item())
 
+        if multiclass:
+            for class_id in range(1, config.num_classes):
+                metrics[f"hausdorff_distance_class_{class_id}"] = _binary_hausdorff(
+                    pred_onehot[:, class_id : class_id + 1],
+                    gt_onehot[:, class_id : class_id + 1],
+                    config.hausdorff_percentile,
+                )
+
     if config.include_iou:
         iou_metric = MeanIoU(
             include_background=include_background, reduction="mean", get_not_nans=False
@@ -164,18 +185,50 @@ def compute_case_metrics(
         iou_tensor = aggregated[0] if isinstance(aggregated, tuple) else aggregated
         metrics["iou"] = float(iou_tensor.item())
 
+        if multiclass:
+            for class_id in range(1, config.num_classes):
+                metrics[f"iou_class_{class_id}"] = _binary_iou(
+                    pred_onehot[:, class_id : class_id + 1],
+                    gt_onehot[:, class_id : class_id + 1],
+                )
+
     if config.include_sensitivity:
         metrics["sensitivity"] = _confusion_matrix_metric(
             metric_pred, metric_gt, "sensitivity", include_background
         )
+
+        if multiclass:
+            for class_id in range(1, config.num_classes):
+                metrics[f"sensitivity_class_{class_id}"] = _confusion_matrix_metric(
+                    pred_onehot[:, class_id : class_id + 1],
+                    gt_onehot[:, class_id : class_id + 1],
+                    "sensitivity",
+                    include_background=True,
+                )
 
     if config.include_specificity:
         metrics["specificity"] = _confusion_matrix_metric(
             metric_pred, metric_gt, "specificity", include_background
         )
 
+        if multiclass:
+            for class_id in range(1, config.num_classes):
+                metrics[f"specificity_class_{class_id}"] = _confusion_matrix_metric(
+                    pred_onehot[:, class_id : class_id + 1],
+                    gt_onehot[:, class_id : class_id + 1],
+                    "specificity",
+                    include_background=True,
+                )
+
     if config.include_volume_similarity:
         metrics["volume_similarity"] = _volume_similarity(volume_pred, volume_gt)
+
+        if multiclass:
+            for class_id in range(1, config.num_classes):
+                metrics[f"volume_similarity_class_{class_id}"] = _volume_similarity(
+                    pred_onehot[:, class_id : class_id + 1],
+                    gt_onehot[:, class_id : class_id + 1],
+                )
 
     return metrics
 
@@ -205,6 +258,28 @@ def _binary_dice(prediction: torch.Tensor, ground_truth: torch.Tensor) -> float:
     aggregated = dice_metric.aggregate()
     dice_tensor = aggregated[0] if isinstance(aggregated, tuple) else aggregated
     return float(dice_tensor.item())
+
+
+def _binary_hausdorff(
+    prediction: torch.Tensor, ground_truth: torch.Tensor, percentile: float
+) -> float:
+    """Hausdorff distance of a single one-hot channel pair -- ``_binary_dice``'s counterpart."""
+    hausdorff_metric = HausdorffDistanceMetric(
+        include_background=True, percentile=percentile, reduction="mean", get_not_nans=False
+    )
+    hausdorff_metric(y_pred=prediction, y=ground_truth)
+    aggregated = hausdorff_metric.aggregate()
+    hausdorff_tensor = aggregated[0] if isinstance(aggregated, tuple) else aggregated
+    return float(hausdorff_tensor.item())
+
+
+def _binary_iou(prediction: torch.Tensor, ground_truth: torch.Tensor) -> float:
+    """IoU of a single one-hot channel pair -- ``_binary_dice``'s counterpart."""
+    iou_metric = MeanIoU(include_background=True, reduction="mean", get_not_nans=False)
+    iou_metric(y_pred=prediction, y=ground_truth)
+    aggregated = iou_metric.aggregate()
+    iou_tensor = aggregated[0] if isinstance(aggregated, tuple) else aggregated
+    return float(iou_tensor.item())
 
 
 def _confusion_matrix_metric(

@@ -29,6 +29,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   0.72 to **0.75**, driven mostly by the right ventricle (RV Dice 0.58
   -> 0.70) -- the structure the fifth iteration had flagged as hardest.
   Full writeup in `docs/real_data_validation.md`.
+- **Per-class breakdown for every metric, not just Dice**:
+  `miai_evaluation.metrics.compute_case_metrics` now reports a
+  `{metric}_class_{c}` entry for every opted-in metric in multi-class
+  mode (`hausdorff_distance_class_{c}`, `iou_class_{c}`,
+  `sensitivity_class_{c}`, `specificity_class_{c}`, `volume_
+  similarity_class_{c}`), not just `dice_class_{c}` as before. Each is
+  computed on that class's one-hot channel alone, the same way
+  `dice_class_{c}` already was. Backward compatible: the new keys only
+  appear when both `num_classes > 1` and the corresponding `include_*`
+  flag is set, so no existing single-class or macro-only caller is
+  affected. Seventh ACDC validation iteration (2026-08-28) re-scores
+  the sixth iteration's checkpoint with the expanded metric config (no
+  retraining): the RV-is-hardest story from Dice mostly holds for
+  IoU/sensitivity too, but volume similarity tells a different story --
+  RV (0.87) is its *worst*-scoring structure, not LV, and Myo (0.91) is
+  its best, showing Dice and volume similarity can disagree about which
+  structure is hardest. Full writeup in `docs/real_data_validation.md`.
 
 ## [1.0.0] - 2026-08-28
 

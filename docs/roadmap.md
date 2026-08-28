@@ -415,6 +415,16 @@ and `inference: {roi_size: ..., ...}` as
   The instability is resolved (no collapse anywhere in this run), and
   macro test Dice improved **0.72 -> 0.75**, concentrated in the RV
   (0.58 -> 0.70). See `docs/real_data_validation.md`.
+- [x] Seventh iteration: extended `miai_evaluation`'s per-class
+  breakdown from Dice-only to every opted-in metric (Hausdorff
+  distance, IoU, sensitivity, specificity, volume similarity), each
+  computed on that class's one-hot channel the same way `dice_class_
+  {c}` already was. No new training run -- re-scored the sixth
+  iteration's checkpoint. Result: IoU/sensitivity mostly agree with
+  Dice's RV-is-hardest story, but volume similarity disagrees -- RV is
+  its worst-scoring structure while Myo is its best, the opposite
+  ranking from every overlap-based metric. See
+  `docs/real_data_validation.md`.
 
 ## Working principle
 
