@@ -71,7 +71,7 @@ huggingface-hub==1.24.0
     #   transformers
 identify==2.6.19
     # via pre-commit
-idna==3.18
+idna==3.19
     # via
     #   anyio
     #   httpx
