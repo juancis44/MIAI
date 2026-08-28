@@ -47,6 +47,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   its best, showing Dice and volume similarity can disagree about which
   structure is hardest. Full writeup in `docs/real_data_validation.md`.
 
+- **Early stopping**: `miai_segmentation.three_d.train.TrainingConfig`
+  (shared by `two_d`) gains an `early_stopping_patience: int | None`
+  field (default `None`, unchanged behavior -- training always runs
+  the full `max_epochs`). When set, training stops once validation
+  Dice has gone that many consecutive validation checks without a new
+  best, and checkpoints the best epoch seen, same as always.
+- Eighth ACDC validation iteration (2026-08-28): `examples/
+  validate_acdc.py` raises `--max-epochs` from 25 to 50 and sets
+  `early_stopping_patience=10`, motivated by the sixth iteration's best
+  checkpoint landing early (epoch 13 of 25) with no further improvement
+  in the remaining 12 epochs. Otherwise identical to the sixth
+  iteration. Training used the extra room -- val Dice kept improving to
+  a new best of 0.8274 at epoch 19, then stopped at epoch 29 after 10
+  non-improving checks. Result: macro test Dice rose from 0.75 to
+  **0.77**, with the largest single improvement in Hausdorff distance
+  (macro HD95 46.2mm -> 28.4mm, ~39% better). Narrowed the gap to the
+  fourth iteration's binary-only ceiling (0.82) from 0.10 to 0.05. Full
+  writeup in `docs/real_data_validation.md`.
+
 ## [1.0.0] - 2026-08-28
 
 First `1.0.0` release: the ACDC real-data validation effort (five

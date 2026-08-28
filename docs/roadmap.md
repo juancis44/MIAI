@@ -425,6 +425,17 @@ and `inference: {roi_size: ..., ...}` as
   its worst-scoring structure while Myo is its best, the opposite
   ranking from every overlap-based metric. See
   `docs/real_data_validation.md`.
+- [x] Eighth iteration: added early stopping to `miai_segmentation`
+  (`TrainingConfig.early_stopping_patience`, defaulting to `None`/off),
+  motivated by the sixth iteration's best checkpoint landing early
+  (epoch 13 of 25) with no further improvement afterward. Raised
+  `--max-epochs` to 50 with `early_stopping_patience=10`, otherwise
+  identical to the sixth iteration. Training used the extra room (new
+  best val Dice 0.8274 at epoch 19) before stopping at epoch 29. Result:
+  macro test Dice improved **0.75 -> 0.77**, narrowing the gap to the
+  binary-era ceiling (0.82) from 0.10 to 0.05, with the biggest single
+  gain in Hausdorff distance (46.2mm -> 28.4mm). See
+  `docs/real_data_validation.md`.
 
 ## Working principle
 

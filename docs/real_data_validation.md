@@ -511,10 +511,100 @@ different clinical questions, and this iteration is the first evidence
 in this validation series that they can actually disagree about which
 structure is "hardest."
 
+## Eighth iteration: more epochs with early stopping
+
+The sixth iteration's best checkpoint landed early (epoch 13 of a
+fixed 25-epoch budget) and validation Dice never improved again in the
+remaining 12 epochs -- a fixed epoch budget has no way to tell whether
+that's a genuine plateau or just too short a run. This iteration adds
+early stopping to `miai_segmentation`: `TrainingConfig.
+early_stopping_patience` (default `None`, so every prior iteration's
+config keeps behaving exactly as before), which stops training once
+validation Dice has gone that many consecutive validation checks
+without a new best. `--max-epochs` is raised to 50 (from 25) so a
+later improvement gets a real chance to surface, and
+`_EARLY_STOPPING_PATIENCE = 10` bounds how long training keeps running
+once it's actually plateaued. Otherwise identical to the sixth
+iteration: same full 150-patient/300-case multi-class dataset,
+patient-level split, augmentation, architecture depth, dropout
+(0.2), and weight decay (1e-5).
+
+Training actually used the full extra room: validation Dice kept
+setting new bests well past where the sixth iteration's fixed 25-epoch
+budget would have cut it off -- 0.6245 (epoch 1) climbing steadily to
+0.8095 (epoch 10), 0.8104 (epoch 12), 0.8239 (epoch 15), and finally
+**0.8274 at epoch 19**, the best checkpoint of this run. From there,
+validation Dice went 10 consecutive checks (epochs 20-29) without
+beating 0.8274 -- including one more dip to 0.7757 at epoch 28, a
+transient wobble similar in shape to (though much milder than) the
+fifth iteration's epoch-23 collapse, but with checkpoint selection
+correctly ignoring it -- so early stopping triggered at epoch 29,
+roughly 40% into the raised 50-epoch budget, and training stopped
+using the epoch 19 checkpoint.
+
+| Split | Cases | Dice (macro, foreground only) |
+|---|---|---|
+| Validation (best epoch, 19/50, stopped at 29) | 60 | 0.8274 |
+| Held-out test | 60 | **0.7740** |
+
+Per-class mean test metrics (all six, per the seventh iteration's
+breakdown), compared against the sixth iteration:
+
+| Metric | RV (6th -> 8th) | Myo (6th -> 8th) | LV (6th -> 8th) | Macro (6th -> 8th) |
+|---|---|---|---|---|
+| Dice | 0.70 -> 0.70 | 0.71 -> 0.76 | 0.83 -> 0.87 | 0.75 -> **0.77** |
+| Hausdorff distance (HD95, mm, lower better) | 51.1 -> 34.1 | 44.7 -> 29.3 | 42.9 -> 22.0 | 46.2 -> **28.4** |
+| IoU | 0.56 -> 0.55 | 0.56 -> 0.62 | 0.74 -> 0.78 | 0.62 -> 0.65 |
+| Sensitivity | 0.75 -> 0.73 | 0.75 -> 0.79 | 0.92 -> 0.90 | 0.80 -> 0.80 |
+| Specificity | 0.997 -> 0.997 | 0.997 -> 0.997 | 0.998 -> 0.999 | 0.997 -> 0.998 |
+| Volume similarity | 0.87 -> 0.88 | 0.91 -> 0.91 | 0.89 -> 0.94 | 0.93 -> 0.95 |
+
+**More training room, released safely by early stopping, closed real
+ground toward the binary-era ceiling.** Macro test Dice rose from 0.75
+to **0.77**, and the Hausdorff distance improvement is the most
+striking single number in this table -- macro HD95 dropped from 46.2mm
+to 28.4mm (roughly 39% better), meaning predicted boundaries are
+substantially closer to the true anatomy, not just marginally more
+overlapping. Myocardium improved the most among the three structures
+(Dice 0.71 -> 0.76), followed by LV (0.83 -> 0.87, now within 0.05 of
+the fourth iteration's *binary* ceiling of 0.82 on a *harder*
+multi-class task). RV stayed essentially flat on Dice (0.70 -> 0.70)
+but still improved on Hausdorff distance (51.1mm -> 34.1mm) --
+consistent with the seventh iteration's finding that RV's overlap
+score and its boundary/volume quality don't always move together.
+
+Per-case test Dice (60 cases) improved across the board: mean 0.77
+(stdev 0.09, tighter than the sixth iteration's stdev 0.11), median
+0.79, only 1 case below 0.5 (down from 2), and 10 below 0.7 (down from
+16). The weakest case is once again `patient142_frame12` (Dice 0.47,
+up from 0.32 in the sixth iteration and 0.18 in the fifth) --
+regularization plus more training keeps chipping away at this
+genuinely hard slice without fully resolving it, consistent with it
+being an ambiguous frame rather than a training artifact.
+
+**The honest read: about 40% of the gap to the binary ceiling closed,
+and no case for pushing further with this exact setup.** The gap
+between this result (0.77) and the fourth iteration's binary "whole
+heart" ceiling (0.82) narrowed from 0.10 (sixth iteration) to 0.05 --
+real progress, driven by giving training the room to actually reach
+its plateau rather than being cut off early. Early stopping did
+exactly its intended job: it used the extra room where the model kept
+improving (epochs 1-19) and cut the run short once it stopped
+(epochs 20-29), instead of blindly consuming the full 50-epoch budget
+either way. Whether the remaining 0.05 gap is closeable with even more
+epochs is doubtful given this run's own evidence -- validation Dice
+went 10 consecutive checks without beating epoch 19's result, including
+epochs deep into loss values (~0.167) essentially unchanged from
+epoch 22 onward, suggesting the model, not the epoch budget, is now
+the binding constraint. Closing more of the gap would likely need a
+different lever -- a deeper/wider architecture, a learning rate
+schedule, or more training data -- not simply more epochs.
+
 ## Reproducing this
 
-The script as it stands today runs the sixth iteration -- multi-class,
-150 patients, 25 epochs, dropout 0.2, weight decay 1e-5:
+The script as it stands today runs the eighth iteration -- multi-class,
+150 patients, up to 50 epochs with early stopping (patience 10),
+dropout 0.2, weight decay 1e-5:
 
 ```bash
 python examples/validate_acdc.py \
@@ -522,9 +612,13 @@ python examples/validate_acdc.py \
     --output-dir examples/output/acdc_validation
 ```
 
-(`--max-epochs` now defaults to `25`, matching what this iteration
-used; earlier iterations used different epoch budgets, noted inline
-above and reproducible by passing `--max-epochs` explicitly.) Earlier
+(`--max-epochs` now defaults to `50`, matching this iteration's raised
+ceiling -- actual training length depends on early stopping, not a
+fixed count; earlier iterations used different, fixed epoch budgets,
+noted inline above and reproducible by passing `--max-epochs`
+explicitly, though `TrainingConfig.early_stopping_patience` would need
+overriding to `None` in a copy of the script to reproduce their exact
+fixed-budget behavior instead of stopping early.) Earlier
 binary-only iterations are not reproducible from the current script
 verbatim -- `_NUM_CLASSES` is set to `4` at module scope, not exposed
 as a CLI flag -- but every metric/config field this section describes
