@@ -159,6 +159,38 @@ config rather than re-training. ``named_class_metrics`` (formerly
 ``_PER_CLASS_METRIC_PREFIXES``, not just Dice. See
 ``docs/real_data_validation.md`` for the result.
 
+**Eighth iteration: more epochs with early stopping, chasing the
+binary-era test Dice ceiling.** The sixth iteration's best checkpoint
+landed early (epoch 13 of a fixed 25-epoch budget) and val Dice never
+improved again in the remaining 12 epochs -- a fixed epoch budget has
+no way to tell whether that's a genuine plateau or just bad luck
+within too short a run. This iteration adds early stopping to
+:mod:`miai_segmentation`, a real (if small) feature addition:
+``TrainingConfig.early_stopping_patience`` (default ``None``, so every
+prior iteration's config keeps behaving exactly as before), which
+stops training once validation Dice has gone this many consecutive
+validation checks without a new best. ``--max-epochs`` is raised to 50
+(from 25) so a later improvement gets a real chance to surface, and
+``_EARLY_STOPPING_PATIENCE = 10`` bounds how long training keeps
+running once it's actually plateaued -- neither number alone would do
+what the two together do: a fixed higher budget risks wasting hours
+training past the point of any real improvement, and a short patience
+without a raised budget wouldn't have let this question get asked at
+all. Otherwise identical to the sixth iteration: same full
+150-patient/300-case multi-class dataset, patient-level split,
+augmentation, architecture depth, dropout, and weight decay -- so any
+change in the result isolates the effect of training longer with early
+stopping, not a confound from also changing the data, architecture, or
+other regularization. The goal: close some of the gap between this
+multi-class series' best result (0.75, sixth iteration) and the
+fourth iteration's binary-only ceiling (0.82) -- multi-class is
+expected to stay below that ceiling for the reasons the fifth
+iteration already laid out (getting the class right, not just the
+pixel, is a strictly harder task), but it's an open question how much
+of the remaining 0.07 gap is architecture/data-scale-limited versus
+simply under-trained. See ``docs/real_data_validation.md`` for the
+result.
+
 Run:
     python examples/validate_acdc.py --data-dir /path/to/ACDC \\
         --output-dir examples/output/acdc_validation
@@ -304,6 +336,18 @@ _DROPOUT = 0.2
 #: the kind of large-weight excursion the fifth iteration's epoch-23
 #: instability looked like.
 _WEIGHT_DECAY = 1e-5
+
+#: Consecutive validation checks with no val Dice improvement before
+#: training stops early -- see the module docstring's "Eighth
+#: iteration" section. The sixth iteration's best checkpoint landed at
+#: epoch 13 of 25 and never improved again in the 12 epochs that
+#: followed, which is what a fixed epoch budget can't see coming: this
+#: iteration raises ``--max-epochs`` well past 25 so a later
+#: improvement gets a real chance to show up, while ``10`` bounds how
+#: long training keeps running once it's actually plateaued, instead of
+#: burning the full raised budget on a run that stopped improving long
+#: before it.
+_EARLY_STOPPING_PATIENCE = 10
 
 #: 2D per-slice UNet (see the module docstring's "Third iteration"
 #: section for why 2D, not 3D, is the right fit for this data): a
@@ -623,6 +667,7 @@ def run_validation(data_dir: Path, output_dir: Path, max_epochs: int) -> dict[st
                 max_epochs=max_epochs,
                 learning_rate=1e-3,
                 weight_decay=_WEIGHT_DECAY,
+                early_stopping_patience=_EARLY_STOPPING_PATIENCE,
                 device="cpu",
                 num_classes=_NUM_CLASSES,
             ),
@@ -699,9 +744,12 @@ def main() -> None:
     parser.add_argument(
         "--max-epochs",
         type=int,
-        default=25,
-        help="25 is what the fourth iteration (full 150-patient dataset) used; the third "
-        "iteration's smaller 50-patient subset used 40 -- pass explicitly to match either.",
+        default=50,
+        help="50 is the eighth iteration's raised ceiling, meant to be cut short by "
+        "early stopping (TrainingConfig.early_stopping_patience, see the module "
+        "docstring's 'Eighth iteration' section) rather than always fully used. 25 is "
+        "what the fourth/fifth/sixth iterations used; the third iteration's smaller "
+        "50-patient subset used 40 -- pass explicitly to match any of those.",
     )
     args = parser.parse_args()
 

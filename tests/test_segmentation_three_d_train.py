@@ -1,5 +1,6 @@
 """Tests for miai_segmentation.three_d.train (tiny real tensors, CPU only)."""
 
+from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import patch
 
@@ -84,6 +85,79 @@ def test_train_model_passes_weight_decay_to_optimizer(tmp_path: Path) -> None:
 
     mock_adam.assert_called_once()
     assert mock_adam.call_args.kwargs["weight_decay"] == pytest.approx(0.01)
+
+
+class _CountingLoader:
+    """Wraps a DataLoader, counting how many times it's iterated over.
+
+    ``train_model`` calls ``for batch in train_loader`` exactly once
+    per epoch, so wrapping the real loader and counting ``__iter__``
+    calls is a way to observe how many epochs actually ran -- without
+    early stopping, that's ``config.max_epochs``; with it, it should be
+    fewer whenever the loop breaks before exhausting the budget.
+    """
+
+    def __init__(self, loader: DataLoader) -> None:
+        self._loader = loader
+        self.iterations = 0
+
+    def __iter__(self) -> Iterator[dict[str, torch.Tensor]]:
+        self.iterations += 1
+        return iter(self._loader)
+
+
+def test_train_model_early_stopping_stops_before_max_epochs(tmp_path: Path) -> None:
+    """learning_rate=0.0 freezes the model's weights, so with a
+    deterministic (no-dropout) architecture every validation check
+    after the first produces the exact same val Dice -- never a strict
+    improvement. With early_stopping_patience=2, training should stop
+    after 3 epochs (the first checkpointing epoch, plus 2 consecutive
+    non-improving checks) rather than running the full max_epochs=10
+    budget."""
+    train_loader = _CountingLoader(_make_loader(tmp_path / "train", 1))
+    val_loader = _make_loader(tmp_path / "val", 1)
+    model = build_unet(_UNET_CONFIG)
+    config = TrainingConfig(
+        max_epochs=10,
+        val_interval=1,
+        device="cpu",
+        learning_rate=0.0,
+        early_stopping_patience=2,
+    )
+
+    checkpoint_path = train_model(model, train_loader, val_loader, config, str(tmp_path / "ckpt"))
+
+    assert checkpoint_path.exists()
+    assert train_loader.iterations == 3
+    assert train_loader.iterations < config.max_epochs
+
+
+def test_train_model_no_early_stopping_by_default_runs_full_budget(tmp_path: Path) -> None:
+    """Same plateaued-Dice setup as the early-stopping test above, but
+    with early_stopping_patience left at its default (None) -- training
+    should run the full max_epochs budget regardless of how many
+    validation checks in a row show no improvement."""
+    train_loader = _CountingLoader(_make_loader(tmp_path / "train", 1))
+    val_loader = _make_loader(tmp_path / "val", 1)
+    model = build_unet(_UNET_CONFIG)
+    config = TrainingConfig(max_epochs=4, val_interval=1, device="cpu", learning_rate=0.0)
+
+    train_model(model, train_loader, val_loader, config, str(tmp_path / "ckpt"))
+
+    assert train_loader.iterations == config.max_epochs
+
+
+def test_train_model_early_stopping_has_no_effect_without_val_loader(tmp_path: Path) -> None:
+    """early_stopping_patience is meaningless with no validation loader
+    to check patience against -- training should still run the full
+    max_epochs budget."""
+    train_loader = _CountingLoader(_make_loader(tmp_path / "train", 1))
+    model = build_unet(_UNET_CONFIG)
+    config = TrainingConfig(max_epochs=3, device="cpu", early_stopping_patience=1)
+
+    train_model(model, train_loader, None, config, str(tmp_path / "ckpt"))
+
+    assert train_loader.iterations == config.max_epochs
 
 
 def _dice_on_loader(model: torch.nn.Module, loader: DataLoader) -> float:

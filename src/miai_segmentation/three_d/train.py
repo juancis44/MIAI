@@ -49,6 +49,21 @@ class TrainingConfig(MIAIBaseConfig):
             /:attr:`~miai_segmentation.two_d.models.UNetConfig.dropout`,
             which regularizes activations rather than weights.
         val_interval: Run validation every ``val_interval`` epochs.
+        early_stopping_patience: Stop training early if validation Dice
+            has not improved for this many consecutive *validation
+            checks* (not epochs -- with ``val_interval > 1`` a patience
+            of ``5`` tolerates ``5 * val_interval`` epochs without
+            improvement, not 5). ``None`` (the default) disables early
+            stopping, unchanged from this config's original
+            behavior -- training always runs the full ``max_epochs``.
+            Has no effect when ``val_loader`` is ``None`` (there is
+            nothing to check patience against). A concrete use case:
+            raising ``max_epochs`` well above what a fixed budget would
+            safely allow, then letting early stopping cut the run short
+            once validation Dice plateaus -- cheaper than guessing the
+            "right" epoch count up front, and unlike a fixed higher
+            budget, it does not waste compute training past the point
+            where the checkpoint stops improving.
         device: ``"cpu"`` or ``"cuda"`` (or a specific CUDA device
             string, e.g. ``"cuda:0"``).
         checkpoint_name: Filename for the best-validation-Dice
@@ -76,6 +91,7 @@ class TrainingConfig(MIAIBaseConfig):
     learning_rate: float = 1e-4
     weight_decay: float = 0.0
     val_interval: int = 1
+    early_stopping_patience: int | None = None
     device: str = "cpu"
     checkpoint_name: str = "best_model.pt"
     num_classes: int = 1
@@ -143,6 +159,7 @@ def train_model(
 
     best_metric = -1.0
     saw_any_batch = False
+    epochs_without_improvement = 0
 
     for epoch in range(config.max_epochs):
         model.train()
@@ -194,12 +211,29 @@ def train_model(
 
                 if metric > best_metric:
                     best_metric = metric
+                    epochs_without_improvement = 0
                     torch.save(model.state_dict(), checkpoint_path)
                     logger.info(
                         "New best val Dice %.4f - checkpoint saved to %s",
                         metric,
                         checkpoint_path,
                     )
+                else:
+                    epochs_without_improvement += 1
+
+                if (
+                    config.early_stopping_patience is not None
+                    and epochs_without_improvement >= config.early_stopping_patience
+                ):
+                    logger.info(
+                        "Early stopping at epoch %d/%d - no val Dice improvement in "
+                        "%d consecutive validation checks (patience=%d)",
+                        epoch + 1,
+                        config.max_epochs,
+                        epochs_without_improvement,
+                        config.early_stopping_patience,
+                    )
+                    break
 
     if not saw_any_batch:
         raise SegmentationError("train_loader yielded no batches; cannot train.")
