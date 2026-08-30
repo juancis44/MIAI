@@ -8,9 +8,12 @@ from miai_segmentation.exceptions import SegmentationError
 from miai_segmentation.two_d.models import (
     ArchitectureConfig,
     AttentionUnetConfig,
+    ResAttentionUNet,
+    ResAttentionUnetConfig,
     UNetConfig,
     build_attention_unet,
     build_model,
+    build_res_attention_unet,
     build_unet,
 )
 
@@ -29,6 +32,15 @@ _TINY_ATTENTION_UNET = AttentionUnetConfig(
     out_channels=1,
     channels=(4, 8),
     strides=(2,),
+)
+
+_TINY_RES_ATTENTION_UNET = ResAttentionUnetConfig(
+    spatial_dims=2,
+    in_channels=1,
+    out_channels=1,
+    channels=(4, 8),
+    strides=(2,),
+    num_res_units=0,
 )
 
 
@@ -88,6 +100,97 @@ def test_build_attention_unet_default_config_is_valid() -> None:
     assert isinstance(model, AttentionUnet)
 
 
+def test_build_res_attention_unet_returns_res_attention_unet() -> None:
+    model = build_res_attention_unet(_TINY_RES_ATTENTION_UNET)
+    assert isinstance(model, ResAttentionUNet)
+
+
+def test_build_res_attention_unet_forward_shape_matches_input() -> None:
+    model = build_res_attention_unet(_TINY_RES_ATTENTION_UNET)
+    x = torch.zeros(1, 1, 16, 16)
+    with torch.no_grad():
+        y = model(x)
+    assert y.shape == (1, 1, 16, 16)
+
+
+def test_build_res_attention_unet_default_config_is_valid() -> None:
+    model = build_res_attention_unet(ResAttentionUnetConfig())
+    x = torch.zeros(1, 1, 32, 32)
+    with torch.no_grad():
+        y = model(x)
+    assert y.shape == (1, 1, 32, 32)
+
+
+def test_build_res_attention_unet_multi_class_multi_level() -> None:
+    """The default config is binary/3-level -- confirm a deeper,
+    multi-class config (matching what examples/validate_acdc.py
+    actually uses) also runs end to end, out_channels included."""
+    config = ResAttentionUnetConfig(
+        channels=(16, 32, 64, 128),
+        strides=(2, 2, 2),
+        num_res_units=2,
+        out_channels=4,
+        dropout=0.2,
+    )
+    model = build_res_attention_unet(config)
+    x = torch.zeros(1, 1, 32, 32)
+    with torch.no_grad():
+        y = model(x)
+    assert y.shape == (1, 4, 32, 32)
+
+
+def test_build_res_attention_unet_with_dropout_forward_shape_matches_input() -> None:
+    config = ResAttentionUnetConfig(
+        spatial_dims=2,
+        in_channels=1,
+        out_channels=1,
+        channels=(4, 8),
+        strides=(2,),
+        num_res_units=1,
+        dropout=0.3,
+    )
+    model = build_res_attention_unet(config)
+    x = torch.zeros(1, 1, 16, 16)
+    with torch.no_grad():
+        y = model(x)
+    assert y.shape == (1, 1, 16, 16)
+
+
+def test_res_attention_unet_rejects_mismatched_strides_and_channels() -> None:
+    """strides must have exactly one fewer entry than channels -- confirm
+    the constructor actually validates this instead of failing later
+    with a confusing shape-mismatch error deep in forward()."""
+    with pytest.raises(SegmentationError):
+        ResAttentionUNet(
+            spatial_dims=2,
+            in_channels=1,
+            out_channels=1,
+            channels=(4, 8, 16),
+            strides=(2,),  # should be (2, 2)
+        )
+
+
+def test_res_attention_unet_gates_actually_use_skip_and_gate_signal() -> None:
+    """The attention gate must be a real function of both its inputs --
+    confirm changing either the gating (decoder) signal or the skip
+    (encoder) signal changes the gate's output, not just accepted and
+    ignored."""
+    from miai_segmentation.two_d.models import _AttentionGate
+
+    gate_module = _AttentionGate(spatial_dims=2, gate_channels=4, skip_channels=4, inter_channels=2)
+    gate_module.eval()
+    torch.manual_seed(0)
+    gate_signal = torch.randn(1, 4, 8, 8)
+    skip_signal = torch.randn(1, 4, 8, 8)
+    with torch.no_grad():
+        baseline = gate_module(gate=gate_signal, skip=skip_signal)
+        different_gate = gate_module(gate=gate_signal + 5.0, skip=skip_signal)
+        different_skip = gate_module(gate=gate_signal, skip=skip_signal + 5.0)
+
+    assert not torch.allclose(baseline, different_gate)
+    assert not torch.allclose(baseline, different_skip)
+
+
 def test_build_model_dispatches_to_unet() -> None:
     model = build_model(ArchitectureConfig(kind="unet", unet=_TINY_UNET))
     assert isinstance(model, UNet)
@@ -98,6 +201,13 @@ def test_build_model_dispatches_to_attention_unet() -> None:
         ArchitectureConfig(kind="attention_unet", attention_unet=_TINY_ATTENTION_UNET)
     )
     assert isinstance(model, AttentionUnet)
+
+
+def test_build_model_dispatches_to_res_attention_unet() -> None:
+    model = build_model(
+        ArchitectureConfig(kind="res_attention_unet", res_attention_unet=_TINY_RES_ATTENTION_UNET)
+    )
+    assert isinstance(model, ResAttentionUNet)
 
 
 def test_build_model_default_config_dispatches_to_unet() -> None:
@@ -117,6 +227,7 @@ def test_build_model_raises_on_bypassed_invalid_kind() -> None:
         kind="not-a-real-architecture",
         unet=UNetConfig(),
         attention_unet=AttentionUnetConfig(),
+        res_attention_unet=ResAttentionUnetConfig(),
     )
     with pytest.raises(SegmentationError):
         build_model(config)
