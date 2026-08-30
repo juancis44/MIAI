@@ -191,6 +191,40 @@ of the remaining 0.07 gap is architecture/data-scale-limited versus
 simply under-trained. See ``docs/real_data_validation.md`` for the
 result.
 
+**Ninth iteration: cosine-annealed learning rate.** Every iteration
+through the eighth used a single, constant Adam learning rate for the
+whole run -- the eighth iteration's own training curve hints this may
+have left something on the table: its later epochs oscillated around
+its plateau (e.g. epoch 19's best of 0.8274 followed by epoch 28's
+dip to 0.7757) rather than settling smoothly, a pattern consistent
+with a fixed step size that is well-suited to early progress but too
+large once the model is closer to convergence. This iteration adds a
+learning rate schedule to :mod:`miai_segmentation`, a real (if small)
+feature addition: ``TrainingConfig.cosine_annealing`` (default
+``False``, so every prior iteration's config keeps behaving exactly
+as before) wraps the optimizer in ``torch.optim.lr_scheduler.
+CosineAnnealingLR``, stepped once per epoch, smoothly decaying the
+rate from ``TrainingConfig.learning_rate`` down to a new floor,
+``TrainingConfig.min_learning_rate`` (default ``0.0``), following a
+cosine curve over ``max_epochs``. This iteration sets both ends of
+that curve explicitly -- ``_MAX_LEARNING_RATE = 1e-3`` (the same
+constant rate every prior iteration used, so the schedule starts
+exactly where the proven-working setup already was) and
+``_MIN_LEARNING_RATE = 1e-5`` (two orders of magnitude lower, small
+enough to let the model fine-tune gently in later epochs without
+letting the rate collapse to a standstill). Otherwise identical to the
+eighth iteration: same full 150-patient/300-case multi-class dataset,
+patient-level split, augmentation, architecture depth, dropout, weight
+decay, raised ``--max-epochs`` ceiling, and early stopping patience --
+so any change in the result isolates the effect of the schedule, not a
+confound from also changing the data, architecture, other
+regularization, or the epoch budget. The goal, same as the eighth
+iteration's: close more of the remaining gap to the fourth iteration's
+binary-only ceiling (0.82), this time via a different lever than more
+epochs alone, per the eighth iteration's own diagnosis that further
+epochs at a constant rate were unlikely to help much more. See
+``docs/real_data_validation.md`` for the result.
+
 Run:
     python examples/validate_acdc.py --data-dir /path/to/ACDC \\
         --output-dir examples/output/acdc_validation
@@ -348,6 +382,16 @@ _WEIGHT_DECAY = 1e-5
 #: burning the full raised budget on a run that stopped improving long
 #: before it.
 _EARLY_STOPPING_PATIENCE = 10
+
+#: The two learning rates a cosine-annealed run is actually configured
+#: by -- see the module docstring's "Ninth iteration" section. Every
+#: prior iteration used a single, constant Adam learning rate (``1e-3``,
+#: still what ``_MAX_LEARNING_RATE`` is set to here, so the schedule's
+#: starting point matches what worked before); ``_MIN_LEARNING_RATE``
+#: is new, the floor the rate decays smoothly towards by the final
+#: epoch instead of staying flat for the whole run.
+_MAX_LEARNING_RATE = 1e-3
+_MIN_LEARNING_RATE = 1e-5
 
 #: 2D per-slice UNet (see the module docstring's "Third iteration"
 #: section for why 2D, not 3D, is the right fit for this data): a
@@ -665,7 +709,9 @@ def run_validation(data_dir: Path, output_dir: Path, max_epochs: int) -> dict[st
             architecture=_ARCHITECTURE,
             training=TrainingConfig(
                 max_epochs=max_epochs,
-                learning_rate=1e-3,
+                learning_rate=_MAX_LEARNING_RATE,
+                cosine_annealing=True,
+                min_learning_rate=_MIN_LEARNING_RATE,
                 weight_decay=_WEIGHT_DECAY,
                 early_stopping_patience=_EARLY_STOPPING_PATIENCE,
                 device="cpu",

@@ -38,7 +38,31 @@ class TrainingConfig(MIAIBaseConfig):
 
     Attributes:
         max_epochs: Number of training epochs.
-        learning_rate: Adam optimizer learning rate.
+        learning_rate: Adam optimizer learning rate. With ``cosine_
+            annealing`` off (the default), this is the single, constant
+            rate used for the whole run -- unchanged from this config's
+            original behavior. With it on, this is the schedule's
+            *starting* (maximum) rate.
+        cosine_annealing: If ``True``, wrap the optimizer in
+            :class:`torch.optim.lr_scheduler.CosineAnnealingLR`,
+            stepped once per epoch, decaying smoothly from
+            ``learning_rate`` down to ``min_learning_rate`` over
+            ``max_epochs`` (``T_max=max_epochs``, ``eta_min=
+            min_learning_rate``) following a cosine curve, rather than
+            holding one constant rate for the whole run. ``False`` (the
+            default) disables it, unchanged from this config's
+            original behavior. If training stops early (see
+            ``early_stopping_patience``), the schedule simply stops
+            partway through its curve rather than completing it -- the
+            same way a fixed epoch budget cut short by early stopping
+            always behaves.
+        min_learning_rate: The schedule's floor rate (``eta_min``),
+            only used when ``cosine_annealing`` is ``True``. Together
+            with ``learning_rate`` (the schedule's ceiling), these are
+            the *two* rates a cosine-annealed run is actually
+            configured by -- one alone does not describe the schedule.
+            Defaults to ``0.0``, MONAI/PyTorch's own default for
+            ``CosineAnnealingLR``'s ``eta_min``.
         weight_decay: Adam optimizer L2 weight decay (MONAI/PyTorch's
             ``Adam(weight_decay=...)``). ``0.0`` (the default) disables
             it, unchanged from this config's original behavior --
@@ -89,6 +113,8 @@ class TrainingConfig(MIAIBaseConfig):
 
     max_epochs: int = 100
     learning_rate: float = 1e-4
+    cosine_annealing: bool = False
+    min_learning_rate: float = 0.0
     weight_decay: float = 0.0
     val_interval: int = 1
     early_stopping_patience: int | None = None
@@ -108,8 +134,11 @@ def train_model(
 
     Runs a standard supervised loop: :class:`monai.losses.DiceLoss`
     (sigmoid, or softmax + one-hot for multi-class -- see
-    :attr:`TrainingConfig.num_classes`), Adam optimization, and -- if
-    ``val_loader`` is given -- validation every ``config.val_interval``
+    :attr:`TrainingConfig.num_classes`), Adam optimization (at a
+    constant rate, or cosine-annealed between ``TrainingConfig.
+    learning_rate`` and ``TrainingConfig.min_learning_rate`` -- see
+    :attr:`TrainingConfig.cosine_annealing`), and -- if ``val_loader``
+    is given -- validation every ``config.val_interval``
     epochs scored with :class:`monai.metrics.DiceMetric`. The
     checkpoint with the highest validation Dice is kept; without a
     validation loader, the final epoch's weights are checkpointed
@@ -153,6 +182,13 @@ def train_model(
     optimizer = torch.optim.Adam(
         model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay
     )
+    scheduler = (
+        torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=config.max_epochs, eta_min=config.min_learning_rate
+        )
+        if config.cosine_annealing
+        else None
+    )
 
     out_dir = ensure_dir(checkpoint_dir)
     checkpoint_path = out_dir / config.checkpoint_name
@@ -184,6 +220,15 @@ def train_model(
                 epoch + 1,
                 config.max_epochs,
                 epoch_loss / n_batches,
+            )
+
+        if scheduler is not None:
+            scheduler.step()
+            logger.info(
+                "Epoch %d/%d - learning rate: %.6f",
+                epoch + 1,
+                config.max_epochs,
+                optimizer.param_groups[0]["lr"],
             )
 
         if val_loader is not None and (epoch + 1) % config.val_interval == 0:

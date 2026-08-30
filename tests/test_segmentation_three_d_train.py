@@ -87,6 +87,100 @@ def test_train_model_passes_weight_decay_to_optimizer(tmp_path: Path) -> None:
     assert mock_adam.call_args.kwargs["weight_decay"] == pytest.approx(0.01)
 
 
+def test_train_model_cosine_annealing_wires_both_learning_rates(tmp_path: Path) -> None:
+    """cosine_annealing/min_learning_rate are new TrainingConfig fields
+    -- confirm CosineAnnealingLR is actually constructed with both the
+    ceiling (learning_rate, via the optimizer it wraps) and the floor
+    (min_learning_rate, as eta_min), not just accepted and ignored."""
+    train_loader = _make_loader(tmp_path / "train", 1)
+    model = build_unet(_UNET_CONFIG)
+    config = TrainingConfig(
+        max_epochs=3,
+        device="cpu",
+        learning_rate=0.1,
+        cosine_annealing=True,
+        min_learning_rate=0.001,
+    )
+
+    with (
+        patch("torch.optim.Adam", wraps=torch.optim.Adam) as mock_adam,
+        patch(
+            "torch.optim.lr_scheduler.CosineAnnealingLR",
+            wraps=torch.optim.lr_scheduler.CosineAnnealingLR,
+        ) as mock_scheduler,
+    ):
+        train_model(model, train_loader, None, config, str(tmp_path / "ckpt"))
+
+    # learning_rate (the ceiling) reaches the optimizer at construction
+    # time, same as it always has -- captured here via call_args rather
+    # than by inspecting the optimizer after the fact, since the
+    # scheduler mutates its param_groups["lr"] as training proceeds.
+    mock_adam.assert_called_once()
+    assert mock_adam.call_args.kwargs["lr"] == pytest.approx(0.1)
+    # min_learning_rate (the floor) reaches CosineAnnealingLR as eta_min,
+    # and max_epochs sets the schedule's full length (T_max).
+    mock_scheduler.assert_called_once()
+    assert mock_scheduler.call_args.kwargs["T_max"] == config.max_epochs
+    assert mock_scheduler.call_args.kwargs["eta_min"] == pytest.approx(0.001)
+
+
+def test_train_model_cosine_annealing_decays_learning_rate(tmp_path: Path) -> None:
+    """End-to-end check (not just the constructor-wiring check above):
+    with cosine_annealing on, the optimizer's actual learning rate
+    should decay over epochs from learning_rate towards
+    min_learning_rate, not stay constant. Captures the real
+    CosineAnnealingLR instance train_model constructs internally (via
+    a wrapping side_effect) rather than poking at the optimizer
+    directly -- PyTorch's own scheduler instruments ``optimizer.step``
+    for its own bookkeeping, so overriding it from the test would
+    conflict with that instrumentation."""
+    train_loader = _make_loader(tmp_path / "train", 1)
+    model = build_unet(_UNET_CONFIG)
+    config = TrainingConfig(
+        max_epochs=10,
+        device="cpu",
+        learning_rate=0.1,
+        cosine_annealing=True,
+        min_learning_rate=0.0,
+    )
+    created_schedulers: list[torch.optim.lr_scheduler.CosineAnnealingLR] = []
+    real_cosine_annealing_lr = torch.optim.lr_scheduler.CosineAnnealingLR
+
+    def _capturing_scheduler(
+        *args: object, **kwargs: object
+    ) -> torch.optim.lr_scheduler.CosineAnnealingLR:
+        scheduler = real_cosine_annealing_lr(*args, **kwargs)  # type: ignore[arg-type]
+        created_schedulers.append(scheduler)
+        return scheduler
+
+    with patch("torch.optim.lr_scheduler.CosineAnnealingLR", side_effect=_capturing_scheduler):
+        train_model(model, train_loader, None, config, str(tmp_path / "ckpt"))
+
+    assert len(created_schedulers) == 1
+    final_lr = created_schedulers[0].get_last_lr()[0]
+    # 10 epochs stepped from learning_rate=0.1 towards min_learning_rate=0.0
+    # should land well below the starting rate -- not exactly 0.0 (T_max
+    # matches max_epochs exactly, landing at the schedule's very last
+    # point rather than past it), but a clear, unambiguous decrease.
+    assert final_lr < 0.1 * 0.5
+
+
+def test_train_model_no_scheduler_by_default_learning_rate_constant(tmp_path: Path) -> None:
+    """cosine_annealing defaults to False -- confirm no scheduler is
+    even constructed, and the optimizer's rate never changes."""
+    train_loader = _make_loader(tmp_path / "train", 1)
+    model = build_unet(_UNET_CONFIG)
+    config = TrainingConfig(max_epochs=3, device="cpu", learning_rate=0.05)
+
+    with patch(
+        "torch.optim.lr_scheduler.CosineAnnealingLR",
+        wraps=torch.optim.lr_scheduler.CosineAnnealingLR,
+    ) as mock_scheduler:
+        train_model(model, train_loader, None, config, str(tmp_path / "ckpt"))
+
+    mock_scheduler.assert_not_called()
+
+
 class _CountingLoader:
     """Wraps a DataLoader, counting how many times it's iterated over.
 
