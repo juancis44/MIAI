@@ -600,11 +600,112 @@ the binding constraint. Closing more of the gap would likely need a
 different lever -- a deeper/wider architecture, a learning rate
 schedule, or more training data -- not simply more epochs.
 
+## Ninth iteration: cosine-annealed learning rate
+
+The eighth iteration's best checkpoint (epoch 19) was followed by 10
+non-improving validation checks before early stopping fired, including
+a transient dip to 0.7757 at epoch 28 -- a mild version of the
+oscillation instability regularization (sixth iteration) was meant to
+address, this time from a learning rate that stayed fixed at 1e-3 for
+the whole run instead of tapering off as training approached a
+plateau. This iteration adds cosine annealing to `miai_segmentation`:
+`TrainingConfig.cosine_annealing` (default `False`, so every existing
+config keeps its constant-rate behavior unchanged) wraps the optimizer
+in `torch.optim.lr_scheduler.CosineAnnealingLR`, stepped once per
+epoch, decaying smoothly from `TrainingConfig.learning_rate` (the
+schedule's ceiling) down to the new `TrainingConfig.min_learning_rate`
+field (the floor, `eta_min`) over `max_epochs`. `examples/
+validate_acdc.py` turns it on with `_MAX_LEARNING_RATE = 1e-3`
+(unchanged from every prior iteration) decaying to `_MIN_LEARNING_RATE
+= 1e-5`, otherwise identical to the eighth iteration: same
+150-patient/300-case multi-class dataset, patient-level split,
+augmentation, architecture, dropout (0.2), weight decay (1e-5), and
+`early_stopping_patience=10`.
+
+Training used the full 50-epoch budget this time -- early stopping
+never fired. Validation Dice climbed smoothly as the rate decayed:
+0.7988 (epoch 12), 0.8290 (epoch 19, already matching the eighth
+iteration's *final* best), 0.8440 (epoch 29), and finally **0.8576 at
+epoch 47**, the best checkpoint of this run -- clearly higher, and
+visibly more stable, than the eighth iteration's 0.8274. No dip
+resembling the eighth iteration's epoch-28 wobble appears anywhere in
+this run's log; the closest is a 0.0029 dip at epoch 41 immediately
+recovered the next epoch. On validation Dice alone, cosine annealing
+looks like a clear win.
+
+| Split | Cases | Dice (macro, foreground only) |
+|---|---|---|
+| Validation (best epoch, 47/50, ran full budget) | 60 | 0.8576 |
+| Held-out test | 60 | 0.7734 |
+
+Per-class mean test metrics (all six, per the seventh iteration's
+breakdown), compared against the eighth iteration:
+
+| Metric | RV (8th -> 9th) | Myo (8th -> 9th) | LV (8th -> 9th) | Macro (8th -> 9th) |
+|---|---|---|---|---|
+| Dice | 0.70 -> 0.71 | 0.76 -> 0.76 | 0.87 -> 0.85 | 0.77 -> 0.77 |
+| Hausdorff distance (HD95, mm, lower better) | 34.1 -> **44.5** | 29.3 -> **34.3** | 22.0 -> **27.0** | 28.4 -> **35.2** |
+| IoU | 0.55 -> 0.58 | 0.62 -> 0.62 | 0.78 -> 0.76 | 0.65 -> 0.65 |
+| Sensitivity | 0.73 -> 0.78 | 0.79 -> 0.81 | 0.90 -> 0.95 | 0.80 -> 0.84 |
+| Specificity | 0.997 -> 0.997 | 0.997 -> 0.997 | 0.999 -> 0.998 | 0.998 -> 0.997 |
+| Volume similarity | 0.88 -> 0.87 | 0.91 -> 0.90 | 0.94 -> 0.89 | 0.95 -> 0.93 |
+
+**A validation-set win that did not transfer to the test set.** Macro
+test Dice is essentially unchanged (0.7740 -> 0.7734), despite the
+much higher and more stable validation Dice (0.8274 -> 0.8576) --
+whatever cosine annealing bought during training, it did not close
+any more of the gap to the fourth iteration's binary ceiling (still
+about 0.05). More strikingly, Hausdorff distance -- the metric that
+delivered the eighth iteration's biggest single win -- got worse
+across every structure this time: macro HD95 rose from 28.4mm to
+35.2mm (about 24% worse), and volume similarity slipped too (0.95 ->
+0.93 macro, LV specifically 0.94 -> 0.89). Sensitivity improved
+instead (macro 0.80 -> 0.84, LV 0.90 -> 0.95) -- consistent with a
+model that, as the rate decayed toward 1e-5 late in training, kept
+fitting the training/validation distribution more aggressively
+(recovering more true-positive pixels) at the cost of looser, less
+precise boundaries on the held-out test set. RV Dice did improve (0.70
+-> 0.71), continuing the pattern from the sixth/eighth iterations of
+RV being the structure most responsive to training changes.
+
+Per-case test Dice (60 cases) stayed close to the eighth iteration in
+aggregate but with a heavier tail: mean 0.7734 (stdev 0.114, wider
+than the eighth iteration's 0.09), median 0.80, 4 cases below 0.6 (up
+from the eighth iteration's 1 below 0.5). `patient142_frame12` is
+again the weakest case (Dice 0.26, actually down from the eighth
+iteration's 0.47) -- this specific slice has now moved in both
+directions across iterations (0.18 -> 0.32 -> 0.47 -> 0.26),
+reinforcing that it is a genuinely ambiguous frame whose score is
+sensitive to exactly how training unfolds, not a steadily-closing gap.
+
+**The honest read: cosine annealing produced a smoother, higher
+training run that did not generalize better, and by one important
+measure (boundary quality) generalized worse.** This is a useful,
+concrete negative result, not a wasted one -- it rules out "the
+eighth iteration's oscillation was costing test performance" as an
+explanation for the remaining gap to the binary ceiling, since removing
+the oscillation (this run has none) left macro Dice flat and made
+Hausdorff distance meaningfully worse. A plausible mechanism: with the
+rate decaying to 1e-5 rather than staying at 1e-3 (which effectively
+acted like a much shorter run for the fixed-rate optimizer, since a
+constant 1e-3 keeps making large-enough updates that it \"gives up\"
+improving sooner, as the eighth iteration's own early-stopping-at-29
+showed), this run's late epochs kept making small, decaying updates
+that pulled validation Dice higher through more precise pixel-level
+recall -- but that additional late fitting come at the expense of the
+boundary precision Hausdorff distance measures, and validation Dice
+alone did not surface that tradeoff. Whether a smaller `min_learning_
+rate` floor, a shorter `T_max`, or reverting to the eighth iteration's
+fixed-rate-plus-early-stopping setup is the better lever going forward
+is exactly the kind of question this result is suited to answer --
+but not one this single run resolves on its own.
+
 ## Reproducing this
 
-The script as it stands today runs the eighth iteration -- multi-class,
+The script as it stands today runs the ninth iteration -- multi-class,
 150 patients, up to 50 epochs with early stopping (patience 10),
-dropout 0.2, weight decay 1e-5:
+dropout 0.2, weight decay 1e-5, and a cosine-annealed learning rate
+(1e-3 down to 1e-5):
 
 ```bash
 python examples/validate_acdc.py \

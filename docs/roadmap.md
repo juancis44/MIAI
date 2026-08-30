@@ -436,6 +436,19 @@ and `inference: {roi_size: ..., ...}` as
   binary-era ceiling (0.82) from 0.10 to 0.05, with the biggest single
   gain in Hausdorff distance (46.2mm -> 28.4mm). See
   `docs/real_data_validation.md`.
+- [x] Ninth iteration: added cosine-annealed learning rate scheduling
+  to `miai_segmentation` (`TrainingConfig.cosine_annealing`/
+  `.min_learning_rate`, both defaulting to off/unchanged behavior),
+  motivated by the eighth iteration's late-training oscillation (a dip
+  to 0.7757 at epoch 28). Decayed from 1e-3 to 1e-5 over the full
+  50-epoch budget, otherwise identical to the eighth iteration.
+  Training ran the full budget with no early stopping and no
+  oscillation, reaching a new best val Dice of 0.8576 (up from 0.8274).
+  Result: macro test Dice was essentially unchanged (0.77 -> 0.77), and
+  Hausdorff distance got worse across every class (macro HD95 28.4mm
+  -> 35.2mm) while sensitivity improved (0.80 -> 0.84) -- a validation
+  win that did not transfer to the test set. See
+  `docs/real_data_validation.md`.
 
 ## Working principle
 

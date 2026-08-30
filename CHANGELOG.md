@@ -66,6 +66,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   fourth iteration's binary-only ceiling (0.82) from 0.10 to 0.05. Full
   writeup in `docs/real_data_validation.md`.
 
+- **Cosine-annealed learning rate**: `miai_segmentation.three_d.
+  train.TrainingConfig` (shared by `two_d`) gains a `cosine_annealing:
+  bool` field (default `False`, unchanged constant-rate behavior) and
+  a `min_learning_rate: float` field (default `0.0`, matching
+  `CosineAnnealingLR`'s own `eta_min` default). When enabled, the
+  optimizer is wrapped in `torch.optim.lr_scheduler.CosineAnnealingLR`
+  (`T_max=max_epochs`, `eta_min=min_learning_rate`), stepped once per
+  epoch, decaying smoothly from `learning_rate` (the ceiling) to
+  `min_learning_rate` (the floor) instead of holding one constant rate
+  for the whole run.
+- Ninth ACDC validation iteration (2026-08-30): `examples/
+  validate_acdc.py` turns cosine annealing on (`_MAX_LEARNING_RATE =
+  1e-3` unchanged, decaying to `_MIN_LEARNING_RATE = 1e-5`), motivated
+  by the eighth iteration's late-training oscillation (a dip to 0.7757
+  at epoch 28). Otherwise identical to the eighth iteration. Training
+  ran the full 50-epoch budget with no early stopping and no
+  oscillation, reaching a new best val Dice of 0.8576 (up from 0.8274)
+  at epoch 47. Result: macro test Dice is essentially unchanged (0.7740
+  -> 0.7734), and Hausdorff distance -- the eighth iteration's biggest
+  single win -- got worse across every class (macro HD95 28.4mm ->
+  35.2mm, ~24% worse); sensitivity improved instead (macro 0.80 ->
+  0.84). A validation-set improvement that did not transfer to the
+  test set, and by one measure (boundary quality) generalized worse.
+  Full writeup in `docs/real_data_validation.md`.
+
 ## [1.0.0] - 2026-08-28
 
 First `1.0.0` release: the ACDC real-data validation effort (five
