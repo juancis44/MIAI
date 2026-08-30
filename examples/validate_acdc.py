@@ -223,7 +223,35 @@ iteration's: close more of the remaining gap to the fourth iteration's
 binary-only ceiling (0.82), this time via a different lever than more
 epochs alone, per the eighth iteration's own diagnosis that further
 epochs at a constant rate were unlikely to help much more. See
-``docs/real_data_validation.md`` for the result.
+``docs/real_data_validation.md`` for the result -- a validation-set
+improvement that did not transfer to the test set (macro Dice
+essentially unchanged, Hausdorff distance meaningfully worse).
+
+**Tenth iteration: ResUNet with attention gates, a new architecture.**
+Every iteration through the ninth used the same plain-residual UNet
+(``ArchitectureConfig(kind="unet")``) -- a different, orthogonal lever
+from the training-procedure changes (regularization, early stopping,
+LR scheduling) the sixth through ninth iterations each tried. This
+iteration adds a third architecture to :mod:`miai_segmentation.two_d`,
+``ResAttentionUNet`` (``kind="res_attention_unet"``): the same residual
+encoder/decoder blocks the plain UNet uses, plus attention gates on
+every skip connection (Oktay et al. 2018's mechanism, the same one
+``AttentionUnetConfig`` already offered on top of *plain* convolutions,
+now combined with residual blocks instead) -- a real, backward-compatible
+addition to :mod:`miai_segmentation` (see ``docs/real_data_validation.md``
+and the CHANGELOG for the library-level change). Since the ninth
+iteration's cosine annealing turned out not to help (see above), this
+iteration reverts ``TrainingConfig.cosine_annealing`` to its default
+``False`` -- ``_MAX_LEARNING_RATE`` is the single, constant rate every
+iteration except the ninth has used -- so architecture is the *only*
+variable that changes versus the eighth iteration: same full
+150-patient/300-case multi-class dataset, patient-level split,
+augmentation, channel depth/width, dropout, weight decay, raised
+``--max-epochs`` ceiling, and early stopping patience. The goal: test
+whether attention gates on a residual backbone close more of the
+remaining gap to the fourth iteration's binary-only ceiling (0.82) than
+the training-procedure levers the sixth through ninth iterations tried.
+See ``docs/real_data_validation.md`` for the result.
 
 Run:
     python examples/validate_acdc.py --data-dir /path/to/ACDC \\
@@ -250,7 +278,7 @@ from miai_pipeline.stages.training import TrainingStage, TrainingStageConfig
 from miai_segmentation.modality import SegmentationInferenceConfig, SegmentationModalityConfig
 from miai_segmentation.three_d.train import TrainingConfig
 from miai_segmentation.two_d.infer import InferenceConfig
-from miai_segmentation.two_d.models import ArchitectureConfig, UNetConfig
+from miai_segmentation.two_d.models import ArchitectureConfig, ResAttentionUnetConfig
 from miai_transforms.config import TransformConfig, TransformSpec
 
 logger = get_logger(__name__)
@@ -383,32 +411,35 @@ _WEIGHT_DECAY = 1e-5
 #: before it.
 _EARLY_STOPPING_PATIENCE = 10
 
-#: The two learning rates a cosine-annealed run is actually configured
-#: by -- see the module docstring's "Ninth iteration" section. Every
-#: prior iteration used a single, constant Adam learning rate (``1e-3``,
-#: still what ``_MAX_LEARNING_RATE`` is set to here, so the schedule's
-#: starting point matches what worked before); ``_MIN_LEARNING_RATE``
-#: is new, the floor the rate decays smoothly towards by the final
-#: epoch instead of staying flat for the whole run.
+#: The constant Adam learning rate every iteration except the ninth
+#: has used -- see the module docstring's "Ninth iteration" section for
+#: why the ninth iteration's cosine-annealed alternative
+#: (``TrainingConfig.cosine_annealing``/``.min_learning_rate``, both
+#: still real, backward-compatible features of :mod:`miai_segmentation`)
+#: is not enabled here: it did not improve test Dice and made Hausdorff
+#: distance meaningfully worse, so the tenth iteration reverts to this
+#: constant rate to isolate the architecture change below as the only
+#: variable versus the eighth iteration.
 _MAX_LEARNING_RATE = 1e-3
-_MIN_LEARNING_RATE = 1e-5
 
-#: 2D per-slice UNet (see the module docstring's "Third iteration"
-#: section for why 2D, not 3D, is the right fit for this data): a
-#: third stride-2 level (16->32->64->128 channels) and 2 residual units
-#: per level, the same depth/width as the second iteration's 3D
-#: network, just at ``spatial_dims=2``. ``out_channels=_NUM_CLASSES``
-#: (up from the binary iterations' implicit ``1``) is what actually
-#: makes this a multi-class model -- see the module docstring's "Fifth
-#: iteration" section for how ``TrainingConfig``/``InferenceConfig``/
+#: 2D per-slice architecture (see the module docstring's "Third
+#: iteration" section for why 2D, not 3D, is the right fit for this
+#: data): ``kind="res_attention_unet"``, new in the tenth iteration
+#: (see that section) -- same channel depth/width every prior iteration
+#: used (16->32->64->128, three stride-2 levels, 2 residual units per
+#: level), now with attention-gated skip connections on top of the
+#: residual blocks. ``out_channels=_NUM_CLASSES`` (up from the binary
+#: iterations' implicit ``1``) is what actually makes this a
+#: multi-class model -- see the module docstring's "Fifth iteration"
+#: section for how ``TrainingConfig``/``InferenceConfig``/
 #: ``MetricsConfig`` pick up the same ``_NUM_CLASSES`` to train, infer,
 #: and score consistently as 4-class instead of binary. ``dropout=
-#: _DROPOUT`` is new in the sixth iteration -- see that section.
+#: _DROPOUT`` is unchanged from the sixth iteration.
 _ARCHITECTURE = SegmentationModalityConfig(
     modality="two_d",
     two_d=ArchitectureConfig(
-        kind="unet",
-        unet=UNetConfig(
+        kind="res_attention_unet",
+        res_attention_unet=ResAttentionUnetConfig(
             channels=(16, 32, 64, 128),
             strides=(2, 2, 2),
             num_res_units=2,
@@ -710,8 +741,6 @@ def run_validation(data_dir: Path, output_dir: Path, max_epochs: int) -> dict[st
             training=TrainingConfig(
                 max_epochs=max_epochs,
                 learning_rate=_MAX_LEARNING_RATE,
-                cosine_annealing=True,
-                min_learning_rate=_MIN_LEARNING_RATE,
                 weight_decay=_WEIGHT_DECAY,
                 early_stopping_patience=_EARLY_STOPPING_PATIENCE,
                 device="cpu",
