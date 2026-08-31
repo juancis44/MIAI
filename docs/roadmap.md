@@ -449,6 +449,21 @@ and `inference: {roi_size: ..., ...}` as
   -> 35.2mm) while sensitivity improved (0.80 -> 0.84) -- a validation
   win that did not transfer to the test set. See
   `docs/real_data_validation.md`.
+- [x] Tenth iteration: added `ResAttentionUNet` to `miai_segmentation.
+  two_d.models` (`ArchitectureConfig.kind="res_attention_unet"`,
+  defaulting to the existing `"unet"` -- no existing config affected),
+  combining MONAI's `ResidualUnit` encoder/decoder with attention-gated
+  skip connections built on MONAI's public primitives. Switched the
+  ACDC script to this architecture and reverted the ninth iteration's
+  cosine annealing to isolate architecture as the sole variable versus
+  the eighth iteration. Training reached a new-fastest best val Dice
+  of 0.8376 at epoch 22 (early-stopped at epoch 32). Result: macro test
+  Dice fell (0.77 -> 0.76) and Hausdorff distance got substantially
+  worse (28.4mm -> 37.8mm), concentrated in the right ventricle (RV
+  Dice 0.70 -> 0.65, RV HD95 34.1mm -> 57.7mm) -- a validation-set win
+  that generalized worse than the plain regularized UNet, the first
+  iteration with a worse rather than merely flat test-set result. See
+  `docs/real_data_validation.md`.
 
 ## Working principle
 

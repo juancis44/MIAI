@@ -91,6 +91,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   test set, and by one measure (boundary quality) generalized worse.
   Full writeup in `docs/real_data_validation.md`.
 
+- **ResUNet with attention gates**: `miai_segmentation.two_d.models`
+  gains `ResAttentionUNet` and a new `ArchitectureConfig` kind,
+  `"res_attention_unet"` (alongside the existing `"unet"`/
+  `"attention_unet"`, still defaulting to `"unet"` -- no existing
+  config or call site is affected). Combines MONAI's `ResidualUnit` in
+  the encoder/decoder with an additive attention gate (Oktay et al.
+  2018) on every skip connection, built from scratch on MONAI's public
+  `Convolution` primitive since MONAI's own `AttentionUnet` internals
+  are private. Neither MIAI nor MONAI previously offered residual
+  blocks and attention gates together in one architecture.
+- Tenth ACDC validation iteration (2026-08-30/31): `examples/
+  validate_acdc.py` switches to `kind="res_attention_unet"` and
+  reverts the ninth iteration's cosine annealing back to a constant
+  learning rate (1e-3), isolating the new architecture as the sole
+  variable against the eighth iteration's baseline. Training reached a
+  new-fastest best val Dice of 0.8376 at epoch 22 (early-stopped at
+  epoch 32). Result: macro test Dice fell (0.7740 -> **0.7579**) and
+  Hausdorff distance got substantially worse (macro HD95 28.4mm ->
+  **37.8mm**, ~33% worse), with the damage concentrated in the right
+  ventricle (RV Dice 0.6952 -> 0.6529, RV HD95 34.1mm -> 57.7mm, RV
+  volume similarity 0.88 -> 0.78). A validation-set win that not only
+  failed to transfer but generalized worse than the plain regularized
+  UNet -- the first iteration with a worse, not just flat, test-set
+  result. Full writeup in `docs/real_data_validation.md`.
+
 ## [1.0.0] - 2026-08-28
 
 First `1.0.0` release: the ACDC real-data validation effort (five

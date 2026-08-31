@@ -700,12 +700,136 @@ fixed-rate-plus-early-stopping setup is the better lever going forward
 is exactly the kind of question this result is suited to answer --
 but not one this single run resolves on its own.
 
+## Tenth iteration: ResUNet with attention gates, a new architecture
+
+Iterations six through nine all pulled a training-procedure lever
+(regularization, more epochs plus early stopping, cosine annealing)
+against the same 2D UNet architecture from the third iteration on --
+none closed more than a fraction of the gap to the fourth iteration's
+binary-only ceiling (0.82), and the ninth iteration's result suggested
+that lever was close to exhausted (a validation-set win that did not
+transfer to the test set, with boundary quality getting worse). This
+iteration changes the architecture itself instead: `miai_segmentation.
+two_d.models` gains `ResAttentionUNet` (`kind="res_attention_unet"` in
+`ArchitectureConfig`, alongside the existing `"unet"`/
+`"attention_unet"`, still defaulting to `"unet"` so no existing config
+or call site is affected) -- a residual-block U-Net (MONAI's
+`ResidualUnit` in the encoder and decoder, the same building block the
+sixth iteration's regularization work already relied on) with
+attention-gated skip connections (the additive gate mechanism from
+Oktay et al. 2018's Attention U-Net, built from scratch on MONAI's
+public `Convolution` primitive rather than MONAI's own `AttentionUnet`,
+whose internal gate/block classes are private and not covered by any
+stability guarantee). Each skip connection is scaled by a learned,
+per-pixel gate in [0, 1] computed from both the decoder's up-sampled
+signal and the encoder's skip signal, before the two are concatenated
+-- intended to let the decoder suppress irrelevant background instead
+of taking the encoder's raw features unfiltered, the way the plain and
+attention-only architectures already offered separately but never
+combined with a residual backbone.
+
+`examples/validate_acdc.py` switches to `kind="res_attention_unet"`
+with channel depth/width, `num_res_units=2`, and dropout (0.2)
+identical to every prior iteration's encoder, and reverts the ninth
+iteration's cosine annealing back to the eighth iteration's constant
+learning rate (1e-3, no decay) -- cosine annealing did not improve
+test Dice and made Hausdorff distance worse, so keeping it enabled
+here would have made the architecture and the learning-rate schedule
+two levers changing at once. Everything else -- the 150-patient/
+300-case multi-class dataset, patient-level 180/60/60 split,
+augmentation, weight decay (1e-5), `--max-epochs` ceiling (50), and
+`early_stopping_patience=10` -- is identical to the eighth iteration,
+so this run isolates the architecture as the sole variable against
+that known baseline.
+
+Validation Dice climbed faster than any prior iteration: **0.8376 at
+epoch 22** (already above the eighth iteration's final best of 0.8274,
+and the ninth iteration's epoch-19 checkpoint of 0.8290, reached in
+roughly half the epochs the ninth iteration needed to first match the
+eighth). Early stopping fired at epoch 32 after 10 non-improving
+checks past epoch 22.
+
+| Split | Cases | Dice (macro, foreground only) |
+|---|---|---|
+| Validation (best epoch, 22/32, early-stopped) | 60 | 0.8376 |
+| Held-out test | 60 | 0.7579 |
+
+Per-class mean test metrics (all six, per the seventh iteration's
+breakdown), compared against the eighth iteration:
+
+| Metric | RV (8th -> 10th) | Myo (8th -> 10th) | LV (8th -> 10th) | Macro (8th -> 10th) |
+|---|---|---|---|---|
+| Dice | 0.6952 -> **0.6529** | 0.7593 -> 0.7598 | 0.8676 -> **0.8610** | 0.7740 -> **0.7579** |
+| Hausdorff distance (HD95, mm, lower better) | 34.1 -> **57.7** | 29.3 -> 26.8 | 22.0 -> **28.8** | 28.4 -> **37.8** |
+| IoU | 0.55 -> **0.51** | 0.62 -> 0.62 | 0.78 -> 0.78 | 0.65 -> **0.63** |
+| Sensitivity | 0.73 -> 0.82 | 0.79 -> 0.74 | 0.90 -> 0.92 | 0.80 -> 0.82 |
+| Specificity | 0.997 -> 0.995 | 0.997 -> 0.998 | 0.999 -> 0.999 | 0.998 -> 0.997 |
+| Volume similarity | 0.88 -> **0.78** | 0.91 -> 0.93 | 0.94 -> 0.92 | 0.95 -> **0.92** |
+
+**A second consecutive validation-set win that did not transfer to
+the test set -- this time a clear net negative, not just a wash.**
+Despite the fastest and highest validation Dice of any iteration so
+far, macro test Dice fell (0.7740 -> 0.7579), Hausdorff distance got
+substantially worse (macro HD95 28.4mm -> 37.8mm, ~33% worse -- the
+worst of any iteration since the fifth), and volume similarity dropped
+too (0.95 -> 0.92 macro, RV specifically 0.88 -> 0.78). The damage is
+concentrated almost entirely in the right ventricle: RV Dice fell
+(0.6952 -> 0.6529), RV Hausdorff distance nearly doubled (34.1mm ->
+57.7mm), and RV volume similarity dropped the most of any structure
+(0.88 -> 0.78). Myocardium and LV moved little or, on some metrics,
+slightly favorably (Myo Dice essentially flat, LV IoU unchanged). RV
+is the smallest, most irregularly-shaped of the three structures and
+has been the most volatile across every iteration in this project
+(sixth and ninth iterations both singled it out as the structure most
+responsive to training changes) -- the attention gates, in suppressing
+what they learn to treat as background, appear to have suppressed RV
+boundary pixels specifically, exactly the effect they were intended to
+prevent when used well.
+
+Per-case test Dice (60 cases) had the second-widest spread in the
+project after the fifth iteration: mean 0.7579 (stdev 0.117), median
+0.7872, 12 cases below 0.7 (up from single digits in every training-
+procedure iteration), 6 below 0.6, 3 below 0.5. `patient142_frame12`
+is again the single weakest case (Dice 0.31), continuing its run of
+volatile scores across iterations (0.18 -> 0.32 -> 0.47 -> 0.26 ->
+0.31) without a clear trend in either direction.
+
+**The honest read: the new architecture trained faster and to a
+higher validation Dice than anything tried before, but generalized
+worse than the plain regularized UNet the eighth iteration validated
+-- the third consecutive iteration (after the ninth's cosine
+annealing) where a validation-side improvement did not transfer, and
+the first where the test-set result is worse in absolute terms, not
+just flat.** The RV-specific damage is the clearest signal: attention
+gates are a plausible mechanism for exactly this kind of failure (a
+gate trained to suppress noise around a small, hard-to-see structure
+can end up suppressing genuine boundary signal instead, especially
+with no dedicated per-class loss weighting to protect the smallest
+class), and it fits the established pattern of RV being the structure
+most sensitive to configuration changes throughout this project. This
+result does not indict `ResAttentionUNet` as a broken implementation
+-- the unit tests confirm the attention gates are a genuine function
+of both their inputs, and the architecture trained stably with no
+oscillation or collapse -- it indicts this particular combination
+(attention gates, this dataset size, this class balance, no per-class
+loss weighting) as worse than the simpler alternative for this task.
+Whether a smaller/larger `inter_channels` bottleneck in the gates, a
+class-weighted loss to protect RV specifically, or reverting to the
+eighth iteration's plain regularized `UNet` as the standing baseline
+is the better path forward is exactly the kind of question this
+result is suited to answer -- but not one this single run resolves on
+its own. `ResAttentionUNet` remains a real, tested, backward-compatible
+addition to `miai_segmentation` regardless of this particular run's
+outcome; the negative result here is about this configuration on this
+dataset, not about the architecture's correctness.
+
 ## Reproducing this
 
-The script as it stands today runs the ninth iteration -- multi-class,
+The script as it stands today runs the tenth iteration -- multi-class,
 150 patients, up to 50 epochs with early stopping (patience 10),
-dropout 0.2, weight decay 1e-5, and a cosine-annealed learning rate
-(1e-3 down to 1e-5):
+dropout 0.2, weight decay 1e-5, a constant learning rate (1e-3, no
+decay), and the `ResAttentionUNet` architecture (residual blocks plus
+attention-gated skip connections):
 
 ```bash
 python examples/validate_acdc.py \
