@@ -284,7 +284,42 @@ data, the rest of the architecture, or the training procedure. The
 goal: recover the RV Dice/Hausdorff distance the tenth iteration lost,
 without losing the fast, high validation Dice attention gates already
 demonstrated they're capable of. See ``docs/real_data_validation.md``
-for the result.
+for the result -- the hypothesis did not hold: RV Hausdorff distance
+got worse, not better, and new damage appeared in myocardium and LV
+along with a late training-Dice collapse, making this the worst
+multi-class macro test Dice in the project so far.
+
+**Twelfth iteration: plain Residual U-Net, attention gates removed
+entirely.** Two consecutive attention-gate configurations (tenth and
+eleventh iterations) have now both underperformed the eighth
+iteration's plain regularized ``UNet`` -- at two different bottleneck
+widths, in two different ways (RV-specific damage, then broader
+damage plus training instability). Rather than trying a third
+bottleneck width, this iteration asks a more basic question: is the
+attention mechanism itself the problem, or is it the residual-block
+architecture underneath it (which none of the ninth through eleventh
+iterations tested in isolation, since ``ResAttentionUNet`` always
+included attention)? ``ResAttentionUnetConfig`` gains ``use_attention:
+bool`` (default ``True``, so the tenth/eleventh iterations' configs
+stay reproducible byte-for-byte) -- setting it ``False`` builds the
+exact same class with its attention gates removed, concatenating each
+skip connection unmodified instead. This iteration sets
+``_USE_ATTENTION = False``, reverts ``_ATTENTION_REDUCTION`` to
+irrelevant (the field is ignored when attention is off), and is
+otherwise identical to the tenth iteration: same residual encoder/
+decoder channel depth/width, ``num_res_units``, dropout, constant
+learning rate, weight decay, ``--max-epochs`` ceiling, and early
+stopping patience -- so attention on/off is the only variable that
+changes versus the tenth iteration specifically (the "standard"
+attention-gated run, at the conventional ``attention_reduction=2``),
+not a confound from also changing the gate bottleneck width tested in
+the eleventh iteration. The goal: determine whether MIAI's own
+from-scratch residual-block encoder/decoder (distinct from MONAI's
+built-in ``UNet``, which the eighth iteration's baseline uses) can
+match or beat the eighth iteration's baseline on its own, or whether
+the tenth/eleventh iterations' problems trace back to the residual
+architecture itself rather than to attention. See
+``docs/real_data_validation.md`` for the result.
 
 Run:
     python examples/validate_acdc.py --data-dir /path/to/ACDC \\
@@ -456,27 +491,36 @@ _EARLY_STOPPING_PATIENCE = 10
 _MAX_LEARNING_RATE = 1e-3
 
 #: Attention gate bottleneck divisor -- see the module docstring's
-#: "Eleventh iteration" section. ``1`` disables the compression
-#: entirely (``ResAttentionUnetConfig.attention_reduction``'s default,
-#: ``2``, is what the tenth iteration actually ran with, hardcoded at
-#: the time); this iteration's sole variable versus the tenth.
-_ATTENTION_REDUCTION = 1
+#: "Eleventh iteration" section. Ignored below since ``_USE_ATTENTION
+#: = False`` this iteration (kept, rather than deleted, so the eleventh
+#: iteration's exact value stays visible in history); ``2`` is
+#: ``ResAttentionUnetConfig.attention_reduction``'s own default, what
+#: the tenth iteration ran with.
+_ATTENTION_REDUCTION = 2
+
+#: Whether :class:`~miai_segmentation.two_d.models.ResAttentionUNet`
+#: attention-gates its skip connections at all -- see the module
+#: docstring's "Twelfth iteration" section. ``False`` here removes the
+#: attention gates entirely, isolating the residual-block architecture
+#: on its own versus the tenth iteration's attention-gated run
+#: (``attention_reduction=2``, the "standard" configuration).
+_USE_ATTENTION = False
 
 #: 2D per-slice architecture (see the module docstring's "Third
 #: iteration" section for why 2D, not 3D, is the right fit for this
 #: data): ``kind="res_attention_unet"``, new in the tenth iteration
 #: (see that section) -- same channel depth/width every prior iteration
 #: used (16->32->64->128, three stride-2 levels, 2 residual units per
-#: level), now with attention-gated skip connections on top of the
-#: residual blocks. ``out_channels=_NUM_CLASSES`` (up from the binary
-#: iterations' implicit ``1``) is what actually makes this a
-#: multi-class model -- see the module docstring's "Fifth iteration"
-#: section for how ``TrainingConfig``/``InferenceConfig``/
-#: ``MetricsConfig`` pick up the same ``_NUM_CLASSES`` to train, infer,
-#: and score consistently as 4-class instead of binary. ``dropout=
-#: _DROPOUT`` is unchanged from the sixth iteration.
-#: ``attention_reduction=_ATTENTION_REDUCTION`` is new in the eleventh
-#: iteration -- see the module docstring's "Eleventh iteration" section.
+#: level), with attention-gated skip connections on top of the residual
+#: blocks when ``use_attention`` is ``True`` -- ``False`` here (new in
+#: the twelfth iteration) makes this a plain residual U-Net instead.
+#: ``out_channels=_NUM_CLASSES`` (up from the binary iterations'
+#: implicit ``1``) is what actually makes this a multi-class model --
+#: see the module docstring's "Fifth iteration" section for how
+#: ``TrainingConfig``/``InferenceConfig``/``MetricsConfig`` pick up the
+#: same ``_NUM_CLASSES`` to train, infer, and score consistently as
+#: 4-class instead of binary. ``dropout=_DROPOUT`` is unchanged from
+#: the sixth iteration.
 _ARCHITECTURE = SegmentationModalityConfig(
     modality="two_d",
     two_d=ArchitectureConfig(
@@ -488,6 +532,7 @@ _ARCHITECTURE = SegmentationModalityConfig(
             out_channels=_NUM_CLASSES,
             dropout=_DROPOUT,
             attention_reduction=_ATTENTION_REDUCTION,
+            use_attention=_USE_ATTENTION,
         ),
     ),
 )
