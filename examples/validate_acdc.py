@@ -251,7 +251,40 @@ augmentation, channel depth/width, dropout, weight decay, raised
 whether attention gates on a residual backbone close more of the
 remaining gap to the fourth iteration's binary-only ceiling (0.82) than
 the training-procedure levers the sixth through ninth iterations tried.
-See ``docs/real_data_validation.md`` for the result.
+See ``docs/real_data_validation.md`` for the result -- the fastest and
+highest validation Dice of any iteration so far, but the first with a
+worse (not just flat) test-set result, concentrated almost entirely in
+the right ventricle (RV Dice, Hausdorff distance, and volume
+similarity all got meaningfully worse; myocardium and LV barely moved).
+
+**Eleventh iteration: widening the attention gates' bottleneck.** The
+tenth iteration's damage was concentrated in the RV -- the smallest,
+most irregularly-shaped of the three structures, and (per the sixth,
+eighth, and ninth iterations) already the one most sensitive to
+configuration changes throughout this project. A plausible mechanism:
+each attention gate's ``1x1`` projections (the gating signal and the
+skip signal) were compressed down to ``up_out // 2`` channels
+(:class:`~miai_segmentation.two_d.models._AttentionGate`'s
+``inter_channels``) before deciding what to suppress -- a narrower
+bottleneck than the skip connection itself, which may have discarded
+exactly the fine-grained information a gate needs to tell "genuine RV
+boundary" apart from "background" on a structure this small. This
+iteration adds ``ResAttentionUnetConfig.attention_reduction`` to
+:mod:`miai_segmentation` (default ``2``, matching the tenth iteration's
+previously-hardcoded bottleneck exactly, so that run's config is still
+reproducible byte-for-byte) and sets it to ``_ATTENTION_REDUCTION = 1``
+here -- removing the compression entirely, so each gate's bottleneck is
+as wide as the skip connection it's gating. Otherwise identical to the
+tenth iteration: same architecture family (``kind="res_attention_
+unet"``), channel depth/width, ``num_res_units``, dropout, constant
+learning rate, weight decay, ``--max-epochs`` ceiling, and early
+stopping patience -- so any change in the result isolates the effect of
+the gate bottleneck's width, not a confound from also changing the
+data, the rest of the architecture, or the training procedure. The
+goal: recover the RV Dice/Hausdorff distance the tenth iteration lost,
+without losing the fast, high validation Dice attention gates already
+demonstrated they're capable of. See ``docs/real_data_validation.md``
+for the result.
 
 Run:
     python examples/validate_acdc.py --data-dir /path/to/ACDC \\
@@ -422,6 +455,13 @@ _EARLY_STOPPING_PATIENCE = 10
 #: variable versus the eighth iteration.
 _MAX_LEARNING_RATE = 1e-3
 
+#: Attention gate bottleneck divisor -- see the module docstring's
+#: "Eleventh iteration" section. ``1`` disables the compression
+#: entirely (``ResAttentionUnetConfig.attention_reduction``'s default,
+#: ``2``, is what the tenth iteration actually ran with, hardcoded at
+#: the time); this iteration's sole variable versus the tenth.
+_ATTENTION_REDUCTION = 1
+
 #: 2D per-slice architecture (see the module docstring's "Third
 #: iteration" section for why 2D, not 3D, is the right fit for this
 #: data): ``kind="res_attention_unet"``, new in the tenth iteration
@@ -435,6 +475,8 @@ _MAX_LEARNING_RATE = 1e-3
 #: ``MetricsConfig`` pick up the same ``_NUM_CLASSES`` to train, infer,
 #: and score consistently as 4-class instead of binary. ``dropout=
 #: _DROPOUT`` is unchanged from the sixth iteration.
+#: ``attention_reduction=_ATTENTION_REDUCTION`` is new in the eleventh
+#: iteration -- see the module docstring's "Eleventh iteration" section.
 _ARCHITECTURE = SegmentationModalityConfig(
     modality="two_d",
     two_d=ArchitectureConfig(
@@ -445,6 +487,7 @@ _ARCHITECTURE = SegmentationModalityConfig(
             num_res_units=2,
             out_channels=_NUM_CLASSES,
             dropout=_DROPOUT,
+            attention_reduction=_ATTENTION_REDUCTION,
         ),
     ),
 )
