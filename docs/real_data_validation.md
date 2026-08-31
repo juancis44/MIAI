@@ -823,13 +823,102 @@ addition to `miai_segmentation` regardless of this particular run's
 outcome; the negative result here is about this configuration on this
 dataset, not about the architecture's correctness.
 
+## Eleventh iteration: widening the attention gates' bottleneck
+
+The tenth iteration's damage was concentrated in the RV, and the
+leading hypothesis was that each attention gate's bottleneck --
+compressed to `up_out // 2` channels before deciding what to suppress
+-- was too narrow to preserve the fine-grained information a small,
+irregular structure like RV needs. `ResAttentionUnetConfig` gains
+`attention_reduction: int = 2` (matching the tenth iteration's
+previously-hardcoded value, so nothing existing changes), and this
+iteration sets it to `1` -- no compression, the gate's bottleneck is as
+wide as the skip connection itself. Otherwise identical to the tenth
+iteration: same architecture family, channel depth/width, dropout,
+constant learning rate, weight decay, `--max-epochs` ceiling, and
+early stopping patience -- isolating the gate bottleneck's width as
+the sole variable.
+
+Training reached a new best val Dice of **0.8192 at epoch 13** (between
+the eighth iteration's 0.8274 and the tenth's 0.8376), then something
+new happened: validation Dice collapsed sharply at epoch 21 (0.7921 ->
+**0.5692**) and stayed collapsed through epoch 23, when early stopping
+fired -- a late-training instability the fifth iteration's own
+collapse (before regularization was added) resembles, not seen in the
+eighth, ninth, or tenth iterations' runs. The kept checkpoint is still
+the best-ever one (epoch 13), unaffected by the later collapse, so
+this doesn't corrupt the result directly -- but it is itself a signal:
+a wider gate bottleneck adds real capacity, and apparently enough of it
+to destabilize training on this data/model combination in a way the
+narrower (tenth iteration) and gate-free (eighth iteration) setups
+did not.
+
+| Split | Cases | Dice (macro, foreground only) |
+|---|---|---|
+| Validation (best epoch, 13/23, early-stopped after a late collapse) | 60 | 0.8192 |
+| Held-out test | 60 | 0.7313 |
+
+Per-class mean test metrics (all six), compared against both the
+eighth iteration (the pre-architecture baseline) and the tenth
+(the narrower-bottleneck attention run this iteration set out to fix):
+
+| Metric | RV (8th / 10th / 11th) | Myo (8th / 10th / 11th) | LV (8th / 10th / 11th) | Macro (8th / 10th / 11th) |
+|---|---|---|---|---|
+| Dice | 0.6952 / 0.6529 / **0.6768** | 0.7593 / 0.7598 / **0.7111** | 0.8676 / 0.8610 / **0.8060** | 0.7740 / 0.7579 / **0.7313** |
+| Hausdorff distance (HD95, mm) | 34.1 / 57.7 / **60.5** | 29.3 / 26.8 / **38.8** | 22.0 / 28.8 / **45.2** | 28.4 / 37.8 / **48.2** |
+| IoU | 0.55 / 0.51 / **0.53** | 0.62 / 0.62 / **0.56** | 0.78 / 0.78 / **0.70** | 0.65 / 0.63 / **0.60** |
+| Sensitivity | 0.73 / 0.82 / 0.78 | 0.79 / 0.74 / **0.71** | 0.90 / 0.92 / **0.90** | 0.80 / 0.82 / **0.78** |
+| Specificity | 0.997 / 0.995 / 0.996 | 0.997 / 0.998 / 0.998 | 0.999 / 0.999 / 0.998 | 0.998 / 0.997 / 0.997 |
+| Volume similarity | 0.88 / 0.78 / **0.83** | 0.91 / 0.93 / 0.92 | 0.94 / 0.92 / **0.88** | 0.95 / 0.92 / **0.93** |
+
+**The hypothesis was wrong, and this is the worst macro test Dice of
+any multi-class iteration so far (0.7313, below the fifth iteration's
+first-ever multi-class attempt at 0.72).** Widening the gate's
+bottleneck did give a small RV Dice improvement over the tenth
+iteration (0.6529 -> 0.6768) -- but RV Hausdorff distance got *worse*
+still (57.7mm -> 60.5mm), and the real damage moved to myocardium and
+LV, both untouched by the tenth iteration's problem: Myo Dice fell
+0.7598 -> 0.7111, LV Dice fell 0.8610 -> 0.8060, and both structures'
+Hausdorff distances roughly doubled from the eighth iteration's
+baseline (Myo 29.3mm -> 38.8mm, LV 22.0mm -> 45.2mm). In other words,
+removing the bottleneck's compression did not free up capacity the RV
+specifically needed -- it gave the whole network more capacity to
+overfit or destabilize, consistent with the epoch-21 validation
+collapse, and every structure paid for it except RV's Dice, marginally.
+
+Per-case test Dice (60 cases) had the widest spread of any multi-class
+iteration: mean 0.7313 (stdev 0.125), median 0.7520, 20 of 60 cases
+below 0.7 (up from 12 in the tenth iteration), 3 below 0.5.
+`patient086_frame08` is the new weakest case (Dice 0.34), narrowly
+displacing `patient142_frame12` (Dice 0.38, still volatile: 0.18 ->
+0.32 -> 0.47 -> 0.26 -> 0.31 -> 0.38) from the bottom for the first
+time in this project.
+
+**The honest read: the RV-suppression hypothesis motivating this
+iteration does not hold up, and the fix made the model worse, not
+better.** A narrower gate bottleneck (tenth iteration) hurt RV
+specifically without touching the other structures; a wider one
+(this iteration) barely helped RV's Dice, made RV's boundary quality
+worse anyway, and additionally damaged both other structures along
+with training stability itself. This rules out "gate bottleneck width"
+as a simple dial that trades off against RV performance in one
+direction -- the relationship is not monotonic, or the real problem
+lies elsewhere in the attention mechanism (or in this task/dataset's
+interaction with attention gates generally) rather than in this one
+hyperparameter. Combined with the tenth iteration's result, three
+consecutive architecture/procedure changes since the eighth iteration
+(cosine annealing, attention gates at reduction=2, attention gates at
+reduction=1) have each underperformed the eighth iteration's plain
+regularized `UNet`, which remains the best-performing configuration
+found across this entire validation effort.
+
 ## Reproducing this
 
-The script as it stands today runs the tenth iteration -- multi-class,
+The script as it stands today runs the eleventh iteration -- multi-class,
 150 patients, up to 50 epochs with early stopping (patience 10),
 dropout 0.2, weight decay 1e-5, a constant learning rate (1e-3, no
-decay), and the `ResAttentionUNet` architecture (residual blocks plus
-attention-gated skip connections):
+decay), and the `ResAttentionUNet` architecture with its attention
+gates' bottleneck compression disabled (`attention_reduction=1`):
 
 ```bash
 python examples/validate_acdc.py \

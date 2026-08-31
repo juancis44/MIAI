@@ -464,6 +464,23 @@ and `inference: {roi_size: ..., ...}` as
   that generalized worse than the plain regularized UNet, the first
   iteration with a worse rather than merely flat test-set result. See
   `docs/real_data_validation.md`.
+- [x] Eleventh iteration: added `ResAttentionUnetConfig.
+  attention_reduction: int = 2` (matching the tenth iteration's
+  previously-hardcoded bottleneck width -- no existing config
+  affected) and set it to `1` in the ACDC script, motivated by the
+  tenth iteration's RV-specific damage and the hypothesis that a
+  narrower attention-gate bottleneck had cost RV fine-grained
+  information. Training hit a late validation-Dice collapse (0.79 ->
+  0.57 at epoch 21) not seen in the eighth/ninth/tenth iterations,
+  early-stopping with its best checkpoint from epoch 13 (val Dice
+  0.8192). Result: the hypothesis did not hold -- macro test Dice fell
+  further (0.76 -> 0.73, the worst multi-class result in this
+  project), RV Hausdorff distance got worse rather than better (57.7mm
+  -> 60.5mm), and new damage appeared in myocardium and LV (untouched
+  by the tenth iteration's problem). Three consecutive post-eighth
+  changes have now each underperformed the eighth iteration's plain
+  regularized UNet, still the best-performing configuration found. See
+  `docs/real_data_validation.md`.
 
 ## Working principle
 

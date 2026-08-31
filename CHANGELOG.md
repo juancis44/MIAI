@@ -116,6 +116,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   UNet -- the first iteration with a worse, not just flat, test-set
   result. Full writeup in `docs/real_data_validation.md`.
 
+- **Configurable attention-gate bottleneck**: `ResAttentionUnetConfig`
+  gains `attention_reduction: int = 2` (matching the tenth iteration's
+  previously-hardcoded `up_out // 2` bottleneck width, so no existing
+  config or call site is affected) -- controls how much each attention
+  gate compresses its gate/skip projections before deciding what to
+  suppress; `1` disables the compression entirely.
+- Eleventh ACDC validation iteration (2026-08-31): `examples/
+  validate_acdc.py` sets `attention_reduction=1`, motivated by the
+  tenth iteration's RV-specific damage and the hypothesis that a
+  narrower bottleneck had discarded fine-grained information RV
+  needed. Otherwise identical to the tenth iteration. Training hit a
+  late validation-Dice collapse (0.79 -> 0.57 at epoch 21, not seen in
+  the eighth/ninth/tenth iterations), early-stopping at epoch 23 with
+  its best checkpoint from epoch 13 (val Dice 0.8192). Result: the
+  hypothesis did not hold -- macro test Dice fell further (0.7579 ->
+  **0.7313**, the worst multi-class result in this project), RV
+  Hausdorff distance got worse, not better (57.7mm -> 60.5mm), and the
+  real damage moved to myocardium and LV (Myo Dice 0.7598 -> 0.7111,
+  LV Dice 0.8610 -> 0.8060), both untouched by the tenth iteration's
+  problem. Three consecutive post-eighth-iteration changes (cosine
+  annealing, attention gates at two bottleneck widths) have now each
+  underperformed the eighth iteration's plain regularized UNet, which
+  remains the best-performing configuration found. Full writeup in
+  `docs/real_data_validation.md`.
+
 ## [1.0.0] - 2026-08-28
 
 First `1.0.0` release: the ACDC real-data validation effort (five
