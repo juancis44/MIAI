@@ -156,6 +156,66 @@ def test_build_res_attention_unet_with_dropout_forward_shape_matches_input() -> 
     assert y.shape == (1, 1, 16, 16)
 
 
+def test_build_res_attention_unet_attention_reduction_one_forward_shape() -> None:
+    """attention_reduction=1 disables the gate bottleneck's compression
+    (inter_channels == up_out instead of up_out // 2) -- confirm it's
+    actually wired through and the model still runs end to end."""
+    config = ResAttentionUnetConfig(
+        spatial_dims=2,
+        in_channels=1,
+        out_channels=1,
+        channels=(4, 8),
+        strides=(2,),
+        num_res_units=1,
+        attention_reduction=1,
+    )
+    model = build_res_attention_unet(config)
+    x = torch.zeros(1, 1, 16, 16)
+    with torch.no_grad():
+        y = model(x)
+    assert y.shape == (1, 1, 16, 16)
+
+
+def test_res_attention_unet_attention_reduction_controls_gate_bottleneck_width() -> None:
+    """attention_reduction must actually change the gate's inter_channels
+    width, not just be accepted and ignored -- inspect the constructed
+    gate module's own conv output channels directly."""
+    model_reduction_2 = ResAttentionUNet(
+        spatial_dims=2,
+        in_channels=1,
+        out_channels=1,
+        channels=(4, 8),
+        strides=(2,),
+        attention_reduction=2,
+    )
+    model_reduction_1 = ResAttentionUNet(
+        spatial_dims=2,
+        in_channels=1,
+        out_channels=1,
+        channels=(4, 8),
+        strides=(2,),
+        attention_reduction=1,
+    )
+    gate_2 = model_reduction_2.attention_gates[0]
+    gate_1 = model_reduction_1.attention_gates[0]
+    # up_out is 4 here (channels[0]): reduction=2 -> inter_channels=2,
+    # reduction=1 -> inter_channels=4.
+    assert gate_2.psi.conv.in_channels == 2  # type: ignore[union-attr]
+    assert gate_1.psi.conv.in_channels == 4  # type: ignore[union-attr]
+
+
+def test_res_attention_unet_rejects_non_positive_attention_reduction() -> None:
+    with pytest.raises(SegmentationError):
+        ResAttentionUNet(
+            spatial_dims=2,
+            in_channels=1,
+            out_channels=1,
+            channels=(4, 8),
+            strides=(2,),
+            attention_reduction=0,
+        )
+
+
 def test_res_attention_unet_rejects_mismatched_strides_and_channels() -> None:
     """strides must have exactly one fewer entry than channels -- confirm
     the constructor actually validates this instead of failing later

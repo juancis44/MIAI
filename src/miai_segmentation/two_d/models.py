@@ -198,6 +198,15 @@ class ResAttentionUNet(nn.Module):
     the gating signal, concatenates the two, and fuses them with
     another :class:`ResidualUnit` -- finished with a ``1x1`` convolution
     to ``out_channels``.
+
+    Each attention gate's bottleneck width (``inter_channels``, the two
+    ``1x1`` gate/skip projections' shared output width before the final
+    projection to a single-channel coefficient map) is
+    ``max(up_out // attention_reduction, 1)`` -- a narrower bottleneck
+    (larger ``attention_reduction``) compresses the gate's decision
+    into fewer channels, a wider one (smaller ``attention_reduction``,
+    down to ``1`` for no compression at all) gives it more capacity to
+    make a nuanced per-pixel decision at the cost of extra parameters.
     """
 
     def __init__(
@@ -209,6 +218,7 @@ class ResAttentionUNet(nn.Module):
         strides: tuple[int, ...],
         num_res_units: int = 2,
         dropout: float = 0.0,
+        attention_reduction: int = 2,
     ) -> None:
         """Build the encoder/decoder residual blocks and attention gates."""
         super().__init__()
@@ -217,6 +227,8 @@ class ResAttentionUNet(nn.Module):
                 "strides must have exactly one fewer entry than channels: got "
                 f"{len(channels)} channels and {len(strides)} strides."
             )
+        if attention_reduction < 1:
+            raise SegmentationError(f"attention_reduction must be >= 1: got {attention_reduction}.")
 
         self.encoders = nn.ModuleList()
         prev_channels = in_channels
@@ -255,7 +267,7 @@ class ResAttentionUNet(nn.Module):
                     spatial_dims,
                     gate_channels=up_out,
                     skip_channels=up_out,
-                    inter_channels=max(up_out // 2, 1),
+                    inter_channels=max(up_out // attention_reduction, 1),
                     dropout=dropout,
                 )
             )
@@ -315,6 +327,13 @@ class ResAttentionUnetConfig(MIAIBaseConfig):
             ``subunits``).
         dropout: Dropout probability applied within each residual
             block and each attention gate.
+        attention_reduction: Divisor applied to each attention gate's
+            skip-connection channel count to get its bottleneck width
+            (``max(up_out // attention_reduction, 1)``). ``2`` (the
+            default, unchanged from this field's introduction) matches
+            the common Attention U-Net convention of halving; ``1``
+            disables the compression entirely (the gate's bottleneck is
+            as wide as the skip connection itself).
     """
 
     spatial_dims: int = 2
@@ -324,6 +343,7 @@ class ResAttentionUnetConfig(MIAIBaseConfig):
     strides: tuple[int, ...] = (2, 2, 2)
     num_res_units: int = 2
     dropout: float = 0.0
+    attention_reduction: int = 2
 
 
 def build_res_attention_unet(config: ResAttentionUnetConfig) -> ResAttentionUNet:
@@ -344,6 +364,7 @@ def build_res_attention_unet(config: ResAttentionUnetConfig) -> ResAttentionUNet
         strides=config.strides,
         num_res_units=config.num_res_units,
         dropout=config.dropout,
+        attention_reduction=config.attention_reduction,
     )
 
 
