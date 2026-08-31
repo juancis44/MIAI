@@ -216,6 +216,83 @@ def test_res_attention_unet_rejects_non_positive_attention_reduction() -> None:
         )
 
 
+def test_build_res_attention_unet_use_attention_false_forward_shape() -> None:
+    """use_attention=False must still build and run end to end -- a
+    plain residual U-Net with the attention gates removed."""
+    config = ResAttentionUnetConfig(
+        spatial_dims=2,
+        in_channels=1,
+        out_channels=1,
+        channels=(4, 8),
+        strides=(2,),
+        num_res_units=1,
+        use_attention=False,
+    )
+    model = build_res_attention_unet(config)
+    x = torch.zeros(1, 1, 16, 16)
+    with torch.no_grad():
+        y = model(x)
+    assert y.shape == (1, 1, 16, 16)
+
+
+def test_res_attention_unet_use_attention_false_builds_no_gate_modules() -> None:
+    """use_attention=False must actually remove the gate modules, not
+    just skip calling them -- confirm no _AttentionGate parameters
+    exist in that case, and that they do exist by default."""
+    model_without = ResAttentionUNet(
+        spatial_dims=2,
+        in_channels=1,
+        out_channels=1,
+        channels=(4, 8),
+        strides=(2,),
+        use_attention=False,
+    )
+    model_with = ResAttentionUNet(
+        spatial_dims=2,
+        in_channels=1,
+        out_channels=1,
+        channels=(4, 8),
+        strides=(2,),
+        use_attention=True,
+    )
+    assert len(model_without.attention_gates) == 0
+    assert len(model_with.attention_gates) == 1
+
+
+def test_res_attention_unet_use_attention_false_output_differs_from_gated() -> None:
+    """Removing the attention gates must actually change the model's
+    output, not just be accepted and ignored -- same weights are
+    impossible to compare directly (different parameter shapes), so
+    this confirms the two variants are genuinely different computations
+    by checking they don't happen to produce identical output on a
+    fixed input."""
+    torch.manual_seed(0)
+    gated = ResAttentionUNet(
+        spatial_dims=2,
+        in_channels=1,
+        out_channels=1,
+        channels=(4, 8),
+        strides=(2,),
+        use_attention=True,
+    )
+    torch.manual_seed(0)
+    ungated = ResAttentionUNet(
+        spatial_dims=2,
+        in_channels=1,
+        out_channels=1,
+        channels=(4, 8),
+        strides=(2,),
+        use_attention=False,
+    )
+    gated.eval()
+    ungated.eval()
+    x = torch.randn(1, 1, 16, 16)
+    with torch.no_grad():
+        y_gated = gated(x)
+        y_ungated = ungated(x)
+    assert not torch.allclose(y_gated, y_ungated)
+
+
 def test_res_attention_unet_rejects_mismatched_strides_and_channels() -> None:
     """strides must have exactly one fewer entry than channels -- confirm
     the constructor actually validates this instead of failing later

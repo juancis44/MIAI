@@ -15,6 +15,10 @@ module's own -- combines the first two: a residual-block
 encoder/decoder (like ``build_unet``'s) with attention-gated skip
 connections (like ``build_attention_unet``'s), a combination neither
 MONAI nor MIAI previously offered as a single architecture).
+``ResAttentionUnetConfig.use_attention=False`` builds the same class
+with its attention gates removed -- a plain residual U-Net with
+ordinary skip connections, letting the two be compared with everything
+else (channel depth/width, dropout) held identical.
 :func:`build_model` dispatches between all three from a single
 :class:`ArchitectureConfig`, mirroring
 :mod:`miai_segmentation.three_d.models`'s pattern.
@@ -207,6 +211,16 @@ class ResAttentionUNet(nn.Module):
     into fewer channels, a wider one (smaller ``attention_reduction``,
     down to ``1`` for no compression at all) gives it more capacity to
     make a nuanced per-pixel decision at the cost of extra parameters.
+
+    Setting ``use_attention=False`` removes the attention gates
+    entirely -- each skip connection is concatenated unmodified, as a
+    plain (non-attention-gated) residual U-Net would -- while keeping
+    every other structural choice (residual encoder/decoder blocks,
+    channel depth/width, dropout) identical. This isolates whether the
+    attention mechanism itself, versus the residual-block architecture
+    it sits on, is responsible for a given result: the same class and
+    forward-pass structure either way, with only the gating step
+    present or absent.
     """
 
     def __init__(
@@ -219,6 +233,7 @@ class ResAttentionUNet(nn.Module):
         num_res_units: int = 2,
         dropout: float = 0.0,
         attention_reduction: int = 2,
+        use_attention: bool = True,
     ) -> None:
         """Build the encoder/decoder residual blocks and attention gates."""
         super().__init__()
@@ -229,6 +244,8 @@ class ResAttentionUNet(nn.Module):
             )
         if attention_reduction < 1:
             raise SegmentationError(f"attention_reduction must be >= 1: got {attention_reduction}.")
+
+        self.use_attention = use_attention
 
         self.encoders = nn.ModuleList()
         prev_channels = in_channels
@@ -262,15 +279,16 @@ class ResAttentionUNet(nn.Module):
                     dropout=dropout,
                 )
             )
-            self.attention_gates.append(
-                _AttentionGate(
-                    spatial_dims,
-                    gate_channels=up_out,
-                    skip_channels=up_out,
-                    inter_channels=max(up_out // attention_reduction, 1),
-                    dropout=dropout,
+            if use_attention:
+                self.attention_gates.append(
+                    _AttentionGate(
+                        spatial_dims,
+                        gate_channels=up_out,
+                        skip_channels=up_out,
+                        inter_channels=max(up_out // attention_reduction, 1),
+                        dropout=dropout,
+                    )
                 )
-            )
             self.decoders.append(
                 ResidualUnit(
                     spatial_dims,
@@ -287,18 +305,18 @@ class ResAttentionUNet(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Run the residual encoder, then the attention-gated decoder."""
+        """Run the residual encoder, then the (optionally attention-gated) decoder."""
         skips = []
         for encoder in self.encoders:
             x = encoder(x)
             skips.append(x)
         skips.pop()  # the bottleneck's own output is not gated against itself
 
-        for up_conv, attention_gate, decoder in zip(
-            self.up_convs, self.attention_gates, self.decoders, strict=True
-        ):
+        for i, (up_conv, decoder) in enumerate(zip(self.up_convs, self.decoders, strict=True)):
             x = up_conv(x)
-            skip = attention_gate(gate=x, skip=skips.pop())
+            skip = skips.pop()
+            if self.use_attention:
+                skip = self.attention_gates[i](gate=x, skip=skip)
             x = torch.cat([x, skip], dim=1)
             x = decoder(x)
 
@@ -333,7 +351,14 @@ class ResAttentionUnetConfig(MIAIBaseConfig):
             default, unchanged from this field's introduction) matches
             the common Attention U-Net convention of halving; ``1``
             disables the compression entirely (the gate's bottleneck is
-            as wide as the skip connection itself).
+            as wide as the skip connection itself). Ignored when
+            ``use_attention`` is ``False``.
+        use_attention: Whether to attention-gate each skip connection
+            at all. ``True`` (the default, unchanged from this field's
+            introduction) preserves every existing behavior; ``False``
+            builds a plain residual U-Net with the same encoder/decoder
+            structure but ordinary (ungated) skip connections -- see
+            :class:`ResAttentionUNet`'s docstring.
     """
 
     spatial_dims: int = 2
@@ -344,6 +369,7 @@ class ResAttentionUnetConfig(MIAIBaseConfig):
     num_res_units: int = 2
     dropout: float = 0.0
     attention_reduction: int = 2
+    use_attention: bool = True
 
 
 def build_res_attention_unet(config: ResAttentionUnetConfig) -> ResAttentionUNet:
@@ -365,6 +391,7 @@ def build_res_attention_unet(config: ResAttentionUnetConfig) -> ResAttentionUNet
         num_res_units=config.num_res_units,
         dropout=config.dropout,
         attention_reduction=config.attention_reduction,
+        use_attention=config.use_attention,
     )
 
 
