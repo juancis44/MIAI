@@ -141,6 +141,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   remains the best-performing configuration found. Full writeup in
   `docs/real_data_validation.md`.
 
+- **Toggleable attention gates**: `ResAttentionUnetConfig` gains
+  `use_attention: bool = True` (default preserves every existing
+  config/call site's behavior byte-for-byte) -- `False` builds the same
+  `ResAttentionUNet` class and forward pass with the attention gates
+  removed entirely, isolating whether the attention mechanism itself,
+  versus the residual-block architecture it sits on, is responsible for
+  a given result.
+- Twelfth ACDC validation iteration (2026-08-31): `examples/
+  validate_acdc.py` sets `use_attention=False`, motivated by two
+  consecutive attention-gate configurations (tenth, eleventh) both
+  underperforming the eighth iteration's baseline -- this iteration
+  asks whether attention itself, or the residual architecture
+  underneath it, was responsible. Otherwise identical to the tenth
+  iteration (the "standard" `attention_reduction=2` run), isolating
+  attention on/off as the sole variable. Validation Dice reached
+  **0.8278 at epoch 15**, the best of any iteration so far, then
+  training showed the same kind of late-training collapse the eleventh
+  iteration had (val Dice 0.81 -> 0.55 at epoch 23) -- despite this run
+  having zero attention gates, ruling out attention as that
+  instability's cause. Early-stopped at epoch 25 with its best
+  checkpoint from epoch 15. Result: the hypothesis did not hold --
+  macro test Dice fell further still (0.7313 -> **0.7200**, now the
+  worst multi-class result in this project), with damage spread across
+  myocardium (Dice 0.7598 -> 0.6856, HD95 26.8mm -> 54.4mm) and LV
+  (Dice 0.8610 -> 0.8288), not concentrated in RV as the tenth
+  iteration's was. Four consecutive post-eighth-iteration changes
+  (cosine annealing, attention at two bottleneck widths, no attention)
+  have now each underperformed the eighth iteration's plain regularized
+  UNet, which remains by a clear margin the best-performing
+  configuration found. Full writeup in `docs/real_data_validation.md`.
+
 ## [1.0.0] - 2026-08-28
 
 First `1.0.0` release: the ACDC real-data validation effort (five

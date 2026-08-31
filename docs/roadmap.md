@@ -481,6 +481,23 @@ and `inference: {roi_size: ..., ...}` as
   changes have now each underperformed the eighth iteration's plain
   regularized UNet, still the best-performing configuration found. See
   `docs/real_data_validation.md`.
+- [x] Twelfth iteration: added `ResAttentionUnetConfig.
+  use_attention: bool = True` (default preserves every existing
+  config/call site's behavior -- no existing config affected) and set
+  it to `False` in the ACDC script, isolating whether attention itself
+  or the residual-block architecture underneath it was responsible for
+  the tenth/eleventh iterations' results. Validation Dice reached
+  0.8278 at epoch 15, the best of any iteration so far, then training
+  hit a late-training collapse (0.81 -> 0.55 at epoch 23) despite this
+  run having zero attention gates -- ruling out attention as that
+  instability's cause. Early-stopped at epoch 25 with its best
+  checkpoint from epoch 15. Result: macro test Dice fell further still
+  (0.73 -> 0.72, now the worst multi-class result in this project),
+  with damage spread across myocardium and LV rather than concentrated
+  in RV. Four consecutive post-eighth changes have now each
+  underperformed the eighth iteration's plain regularized UNet, still
+  the best-performing configuration found. See
+  `docs/real_data_validation.md`.
 
 ## Working principle
 

@@ -912,13 +912,129 @@ reduction=1) have each underperformed the eighth iteration's plain
 regularized `UNet`, which remains the best-performing configuration
 found across this entire validation effort.
 
+## Twelfth iteration: plain Residual U-Net, attention gates removed entirely
+
+Two consecutive attention-gate configurations (tenth: standard
+`attention_reduction=2`; eleventh: no bottleneck compression,
+`attention_reduction=1`) both underperformed the eighth iteration's
+plain regularized `UNet`, and the eleventh additionally introduced a
+late-training validation collapse never seen in the eighth, ninth, or
+tenth iterations. Rather than try a third bottleneck width, this
+iteration asks a more basic question: is the attention mechanism
+itself responsible for the tenth/eleventh iterations' results, or is
+it the custom residual-block encoder/decoder architecture underneath
+it (`ResAttentionUNet`, distinct from MONAI's built-in `UNet` the
+eighth iteration's baseline uses)? `ResAttentionUnetConfig` gains
+`use_attention: bool = True`; setting it to `False` builds the exact
+same `ResAttentionUNet` class and forward pass with the attention
+gates removed entirely -- each skip connection is concatenated
+unmodified, as a plain (non-attention-gated) residual U-Net would be,
+with every other structural choice (residual encoder/decoder blocks,
+channel depth/width, dropout) held identical. Unlike a new class, this
+guarantees the *only* variable that changes is whether the gating step
+runs at all.
+
+`examples/validate_acdc.py` sets `_USE_ATTENTION = False`. Everything
+else -- channel depth/width, `num_res_units=2`, dropout (0.2), the
+constant learning rate (1e-3, no decay), weight decay (1e-5),
+`--max-epochs` ceiling (50), and `early_stopping_patience=10` -- is
+identical to the tenth iteration, not the eleventh: the tenth used the
+"standard" `attention_reduction=2` configuration, so comparing against
+it (rather than the eleventh's already-rejected `attention_reduction=1`)
+isolates attention on/off as the sole variable.
+
+Validation Dice reached the highest best-epoch value of any iteration
+in this project: **0.8278 at epoch 15** (above the eighth iteration's
+0.8274 and the eleventh's 0.8192, though still below the tenth's
+0.8376). Training then showed the same kind of late instability the
+eleventh iteration's wider gate bottleneck produced -- except this run
+has *no* attention gates at all: validation Dice collapsed at epoch 23
+(0.8088 -> 0.5485), stayed collapsed through epoch 24 (0.5748), and
+early stopping fired at epoch 25 after 10 non-improving checks past
+epoch 15. The kept checkpoint is the pre-collapse best (epoch 15),
+same safety net as the eleventh iteration.
+
+| Split | Cases | Dice (macro, foreground only) |
+|---|---|---|
+| Validation (best epoch, 15/25, early-stopped after a late collapse) | 60 | 0.8278 |
+| Held-out test | 60 | 0.7200 |
+
+Per-class mean test metrics (all six), compared against the eighth
+iteration (pre-architecture baseline) and the tenth (the
+attention-gated run this iteration isolates attention against):
+
+| Metric | RV (8th / 10th / 12th) | Myo (8th / 10th / 12th) | LV (8th / 10th / 12th) | Macro (8th / 10th / 12th) |
+|---|---|---|---|---|
+| Dice | 0.6952 / 0.6529 / **0.6455** | 0.7593 / 0.7598 / **0.6856** | 0.8676 / 0.8610 / **0.8288** | 0.7740 / 0.7579 / **0.7200** |
+| Hausdorff distance (HD95, mm) | 34.1 / 57.7 / **54.5** | 29.3 / 26.8 / **54.4** | 22.0 / 28.8 / **42.1** | 28.4 / 37.8 / **50.3** |
+| IoU | 0.55 / 0.51 / **0.49** | 0.62 / 0.62 / **0.53** | 0.78 / 0.78 / **0.73** | 0.65 / 0.63 / **0.58** |
+| Sensitivity | 0.73 / 0.82 / **0.63** | 0.79 / 0.74 / 0.73 | 0.90 / 0.92 / **0.85** | 0.80 / 0.82 / **0.73** |
+| Specificity | 0.997 / 0.995 / 0.998 | 0.997 / 0.998 / 0.996 | 0.999 / 0.999 / 0.999 | 0.998 / 0.997 / 0.998 |
+| Volume similarity | 0.88 / 0.78 / **0.84** | 0.91 / 0.93 / **0.90** | 0.94 / 0.92 / 0.91 | 0.95 / 0.92 / 0.94 |
+
+**Removing the attention gates entirely did not recover the eighth
+iteration's baseline -- it produced the worst macro test Dice of any
+multi-class iteration so far (0.7200, below the eleventh's 0.7313 and
+well below the tenth's 0.7579), despite the best validation Dice of
+the whole project.** The damage this time is not RV-specific the way
+the tenth iteration's was: Myo Dice fell hardest (0.7598 -> 0.6856)
+and its Hausdorff distance roughly doubled (26.8mm -> 54.4mm), LV Dice
+and Hausdorff distance both got worse too (0.8610 -> 0.8288, 28.8mm ->
+42.1mm), and RV sensitivity dropped sharply (0.82 -> 0.63) even though
+RV's own Hausdorff distance improved slightly relative to the tenth
+iteration (57.7mm -> 54.5mm) and RV volume similarity improved
+(0.78 -> 0.84). This is a genuinely different failure pattern from the
+tenth iteration's RV-concentrated one -- it looks far more like the
+eleventh iteration's late-training collapse (same shape: a sharp
+validation Dice drop late in training, recovered from only partially
+by the checkpoint-saving safety net) than like an attention-specific
+problem, which is the key finding here: **this run has zero attention
+gates and still destabilized**, which rules out the attention
+mechanism itself as the cause of that instability. Whatever
+destabilizes training late -- most plausibly something in the shared
+residual-block architecture, dropout, weight decay, or constant
+learning-rate combination, all held identical across the tenth,
+eleventh, and twelfth iterations -- it isn't the gates.
+
+Per-case test Dice (60 cases) had a similar spread to the tenth
+iteration: mean 0.7200 (stdev 0.114), median 0.7555, 2 cases below
+0.5. `patient142_frame12` is again the single weakest case (Dice
+0.32, continuing its volatile run across iterations: 0.18 -> 0.32 ->
+0.47 -> 0.26 -> 0.31 -> 0.38 -> 0.32), and `patient086_frame08` (Dice
+0.37) is the second-weakest, echoing its appearance at the very bottom
+of the eleventh iteration's ranking.
+
+**The honest read: the hypothesis behind this iteration -- that
+attention was the problem, and removing it would recover the eighth
+iteration's baseline -- is now decisively ruled out.** A plain
+residual U-Net, with no attention gates whatsoever, generalized worse
+than both attention-gated configurations tried so far, and worse than
+the plain MONAI `UNet` baseline by a wide margin (0.7740 -> 0.7200,
+the largest drop of any single-lever change in this project). Combined
+with the tenth and eleventh iterations, four consecutive
+architecture/procedure changes since the eighth iteration (cosine
+annealing, attention at reduction=2, attention at reduction=1, no
+attention at all) have each underperformed the eighth iteration's
+plain regularized `UNet`, which remains by a clear margin the
+best-performing configuration found across this entire validation
+effort. The late-training collapse recurring without attention gates
+present is the most useful signal from this run: it points away from
+the attention mechanism and toward something shared by the residual
+architecture itself, or the training recipe it's paired with, as the
+actual source of the instability seen in both the eleventh and twelfth
+iterations -- a question a future iteration could isolate by returning
+to MONAI's plain `UNet` with the residual-block encoder/decoder as the
+next single lever, or by testing this same `ResAttentionUNet`
+(attention on or off) against a lower learning rate or reduced weight
+decay.
+
 ## Reproducing this
 
-The script as it stands today runs the eleventh iteration -- multi-class,
+The script as it stands today runs the twelfth iteration -- multi-class,
 150 patients, up to 50 epochs with early stopping (patience 10),
 dropout 0.2, weight decay 1e-5, a constant learning rate (1e-3, no
 decay), and the `ResAttentionUNet` architecture with its attention
-gates' bottleneck compression disabled (`attention_reduction=1`):
+gates removed entirely (`use_attention=False`, a plain residual U-Net):
 
 ```bash
 python examples/validate_acdc.py \
