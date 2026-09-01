@@ -54,6 +54,15 @@ Four kinds of plot, one function each:
    module docstring) -- this function demonstrates it end to end
    against a completed run without waiting for a new one. Run for both
    the twelfth iteration and the eighth/baseline.
+5. ``plot_points_of_interest_grid`` -- a single 3x3 figure per
+   iteration meant to surface interesting cases at a glance rather
+   than requiring one PNG per case: each row is one representative
+   test case by macro Dice (best, closest-to-median, worst), each
+   column is one of the three segmentation views ground truth /
+   prediction / |difference| (the same three panels
+   ``plot_all_case_comparisons`` already produces per case, here
+   assembled into one grid instead of nine separate files). Run for
+   both the twelfth iteration and the eighth/baseline.
 
 This script hardcodes the specific `/tmp/...` paths this sandbox
 session's twelve ACDC iterations wrote their logs/outputs/reports to
@@ -72,9 +81,12 @@ import argparse
 import csv
 import json
 import re
+import statistics
 import zipfile
 from pathlib import Path
 
+import matplotlib.pyplot as plt
+import numpy as np
 import SimpleITK as sitk
 
 from miai_pipeline.context import PipelineContext
@@ -285,6 +297,96 @@ def plot_all_case_comparisons(output_dir: Path, iteration_dir: Path, label: str)
     return written
 
 
+def _select_points_of_interest(
+    per_case: list[dict[str, object]],
+) -> list[tuple[str, dict[str, object]]]:
+    """Pick the best-, median-, and worst-Dice cases from a report's ``per_case`` list.
+
+    Args:
+        per_case: ``evaluation_report.json["per_case"]`` -- one dict
+            per test case, each with a ``"dice"`` (macro) key.
+
+    Returns:
+        Three ``(row_label, case)`` pairs, in best/median/worst order.
+        "Median" is the case whose own Dice is closest to the set's
+        statistical median, not necessarily the middle element by
+        sort order (ties broken by whichever sorts first).
+    """
+    dice_values = [float(case["dice"]) for case in per_case]  # type: ignore[arg-type]
+    median_dice = statistics.median(dice_values)
+    best = max(per_case, key=lambda case: case["dice"])  # type: ignore[arg-type,return-value]
+    worst = min(per_case, key=lambda case: case["dice"])  # type: ignore[arg-type,return-value]
+    median_case = min(per_case, key=lambda case: abs(case["dice"] - median_dice))  # type: ignore[operator]
+    return [
+        (f"Best (Dice={best['dice']:.3f})", best),
+        (f"Median (Dice={median_case['dice']:.3f})", median_case),
+        (f"Worst (Dice={worst['dice']:.3f})", worst),
+    ]
+
+
+def plot_points_of_interest_grid(
+    report_path: Path, iteration_dir: Path, output_path: Path, label: str
+) -> Path:
+    """Plot a 3x3 grid: best/median/worst-Dice cases x ground truth/prediction/diff.
+
+    One PNG, nine panels: each row is a representative test case
+    picked by macro Dice (see :func:`_select_points_of_interest`), each
+    column is one segmentation view of that case's middle slice
+    (ground truth label map, predicted label map, their absolute
+    difference) -- a fast way to spot where a model does best, does
+    typically, and fails worst, without opening nine separate files.
+
+    Args:
+        report_path: An iteration's ``evaluation_report.json``.
+        iteration_dir: That same iteration's full pipeline output
+            directory, providing ``padded_labels``/``predictions``.
+        output_path: Where the PNG is written. Parent directories are
+            created if missing.
+        label: Short tag identifying the iteration, used in the
+            figure's overall title (e.g. ``"8th (baseline)"``).
+
+    Returns:
+        ``output_path`` as a :class:`pathlib.Path`.
+    """
+    report = json.loads(report_path.read_text())
+    rows = _select_points_of_interest(report["per_case"])
+    columns = ["Ground truth", "Prediction", "|Prediction - Ground truth|"]
+
+    fig, axes = plt.subplots(3, 3, figsize=(10.5, 11))
+    for row_idx, (row_label, case) in enumerate(rows):
+        case_root = str(case["case"]).removesuffix("_preprocessed_pred.nii.gz")
+        label_path = iteration_dir / "padded_labels" / f"{case_root}_gt_preprocessed.nii.gz"
+        pred_path = iteration_dir / "predictions" / str(case["case"])
+
+        gt_volume = sitk.GetArrayFromImage(sitk.ReadImage(str(label_path)))
+        pred_volume = sitk.GetArrayFromImage(sitk.ReadImage(str(pred_path)))
+        mid = gt_volume.shape[0] // 2
+        gt_slice = gt_volume[mid]
+        pred_slice = pred_volume[mid]
+        diff_slice = np.abs(pred_slice.astype(np.float64) - gt_slice.astype(np.float64))
+
+        panels = [gt_slice, pred_slice, diff_slice]
+        cmaps = ["viridis", "viridis", "inferno"]
+        for col_idx, (panel, cmap) in enumerate(zip(panels, cmaps, strict=True)):
+            ax = axes[row_idx, col_idx]
+            ax.imshow(panel, cmap=cmap)
+            ax.set_xticks([])
+            ax.set_yticks([])
+            if row_idx == 0:
+                ax.set_title(columns[col_idx])
+            if col_idx == 0:
+                ax.set_ylabel(f"{row_label}\n{case_root}", fontsize=9)
+
+    fig.suptitle(f"{label}: points of interest (best / median / worst test-case Dice)")
+    fig.tight_layout()
+
+    out_path = Path(output_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, bbox_inches="tight")
+    plt.close(fig)
+    return out_path
+
+
 def plot_macro_dice_bar_chart(output_dir: Path) -> Path:
     """Plot a cross-iteration macro test Dice bar chart (8th-12th).
 
@@ -396,10 +498,16 @@ def main() -> None:
     case_paths: list[Path] = []
     box_paths: list[Path] = []
     qc_zips: list[Path] = []
+    poi_paths: list[Path] = []
     for label, iteration_dir, report_path, slug in iterations:
         cases_dir = output_dir / "case_comparisons" / slug
         case_paths += plot_all_case_comparisons(cases_dir, iteration_dir, label)
         box_paths.append(plot_per_class_dice_box(report_path, summaries_dir, label))
+        poi_paths.append(
+            plot_points_of_interest_grid(
+                report_path, iteration_dir, output_dir / f"{slug}_points_of_interest.png", label
+            )
+        )
 
         qc_dir = output_dir / "qc_montages" / slug
         qc_paths = run_qc_montages(qc_dir, iteration_dir)
@@ -411,6 +519,7 @@ def main() -> None:
     print(f"Macro Dice bar chart: {macro_bar_path}")
     print(f"Case comparisons: {len(case_paths)} PNGs under {output_dir / 'case_comparisons'}")
     print(f"Per-class Dice box plots: {box_paths}")
+    print(f"Points-of-interest grids: {poi_paths}")
     print(f"QC montages zipped to: {qc_zips}")
 
 

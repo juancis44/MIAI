@@ -1083,23 +1083,43 @@ Two additions close that gap, both backward compatible:
   test-set image right after evaluation, writing one QC slice-montage
   PNG per case to `<output-dir>/qc_montages/`.
 - `examples/visualize_acdc_results.py` is a new, separate script that
-  builds four kinds of plot from a *completed* run's logs and
+  builds several kinds of plot from a *completed* run's logs and
   `evaluation_report.json`, without retraining or needing
   `--visualize`: training curves (a dedicated twelfth-iteration
   train-loss/val-Dice chart, and a 4-way validation-Dice comparison
   across the eighth/tenth/eleventh/twelfth iterations on the same
   axes -- the epoch-21/epoch-23 collapses are immediately visible as a
   sharp drop, where the text writeups above could only describe
-  them), ground-truth-vs-prediction comparisons for a few twelfth-
-  iteration test cases (a difference map between the two label maps,
-  plus the predicted mask overlaid on the source MRI for anatomical
-  context), and metric summaries (macro test Dice across iterations
-  8-12 as a bar chart, and the twelfth iteration's per-case Dice split
-  by class as a box plot). It also exercises `VisualizationStage`
-  itself, the same way the new `--visualize` flag does, against the
-  twelfth iteration's already-completed test set -- so this session's
-  visualization work is confirmed end to end without waiting for
-  another multi-hour training run.
+  them), ground-truth-vs-prediction comparisons for a few of the same
+  test cases (a difference map between the two label maps, plus the
+  predicted mask overlaid on the source MRI for anatomical context),
+  metric summaries (macro test Dice across iterations 8-12 as a bar
+  chart, and a per-case Dice split by class as a box plot), and a
+  "points of interest" 3x3 grid: for a given iteration, the best-,
+  median- and worst-Dice test case (by macro Dice, from
+  `evaluation_report.json["per_case"]`), each shown as ground truth /
+  prediction / |difference| across one row. The comparison plots, the
+  box plot, the QC montages and the points-of-interest grid are all
+  produced for *both* the twelfth iteration (no attention) and the
+  eighth-iteration baseline, on the exact same test cases where
+  applicable, since both iterations share the same patient-level
+  60-case test split (`seed=42`) -- confirmed by diffing the two
+  manifests' `test` filenames -- so the images are directly
+  comparable. It also exercises `VisualizationStage` itself, the same
+  way the new `--visualize` flag does, against each iteration's
+  already-completed test set -- so this session's visualization work
+  is confirmed end to end without waiting for another multi-hour
+  training run.
+
+  The points-of-interest grids for both iterations land on the same
+  worst case, `patient142_frame12` (macro Dice 0.324 for the twelfth
+  iteration vs. 0.467 for the eighth-iteration baseline): the
+  right-ventricle label is almost entirely missed by the no-attention
+  model on this frame, while the baseline still under-segments it but
+  keeps a partial prediction -- consistent with the twelfth
+  iteration's lower macro test Dice overall, and a concrete (not just
+  numerical) picture of what "worse" looks like on this model's
+  hardest case.
 
 The script hardcodes this sandbox session's specific `/tmp/...`
 output/log paths (see its module docstring) -- it is a one-off

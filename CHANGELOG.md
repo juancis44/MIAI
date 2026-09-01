@@ -180,12 +180,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   uses, unmodified -- over every held-out test-set image right after
   evaluation, writing one QC slice-montage PNG per case. Also adds a
   new script, `examples/visualize_acdc_results.py`, which builds
-  training-curve, ground-truth-vs-prediction, and per-iteration
-  metric-summary plots from a completed run's logs and
-  `evaluation_report.json` using `miai_visualization` (until now wired
-  into the generic pipeline demo only, never into this validation
-  effort) -- no retraining needed. Full description in
-  `docs/real_data_validation.md`'s "Visualizing results" section.
+  training-curve, ground-truth-vs-prediction, per-iteration
+  metric-summary, and points-of-interest (best/median/worst test-case
+  Dice, ground truth vs. prediction vs. |difference|) plots from a
+  completed run's logs and `evaluation_report.json` using
+  `miai_visualization` (until now wired into the generic pipeline demo
+  only, never into this validation effort) -- no retraining needed.
+  The comparison plots, per-class Dice box plot, QC montages, and
+  points-of-interest grid are all produced for both the twelfth
+  iteration and the eighth-iteration baseline on the same test cases,
+  since both share the same `seed=42` patient-level test split. Full
+  description in `docs/real_data_validation.md`'s "Visualizing
+  results" section.
 
 ## [1.0.0] - 2026-08-28
 
