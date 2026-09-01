@@ -21,30 +21,39 @@ Four kinds of plot, one function each:
    collapse in context), one comparing best-validation-Dice-yet
    iteration (12th) against the reference baseline (8th) and the two
    attention-gate iterations (10th/11th) on the same axes.
-2. ``plot_all_case_comparisons`` -- for a handful of twelfth-iteration
-   test cases (the two weakest, `patient142_frame12` and
+2. ``plot_all_case_comparisons`` -- for a fixed handful of test cases
+   (the two weakest twelfth-iteration cases, `patient142_frame12` and
    `patient086_frame08`, plus a representative case near the median,
-   `patient001_frame01`), uses
+   `patient001_frame01`) -- uses
    :func:`miai_visualization.comparison.plot_comparison` to show the
    ground-truth and predicted label maps side by side with an absolute
    difference map, and :func:`miai_visualization.slices.plot_slice` to
    overlay the prediction on the source MRI for anatomical context.
-3. ``plot_all_metric_summaries`` -- reads every iteration's
-   ``evaluation_report.json`` (still on disk under
-   ``/tmp/deliverables/``, per the project's established naming) and
-   plots macro test Dice across iterations 8-12 as a bar chart via
-   :func:`miai_visualization.metrics.plot_metric_summary` (``kind=
-   "bar"``), plus a box plot of the twelfth iteration's per-case Dice
-   split by class (RV/Myo/LV) via the same function (``kind="box"``).
+   Run once per iteration (twelfth and, for comparison, the eighth/
+   baseline) against the *same* cases and frames -- the eighth and
+   twelfth iterations share an identical 60-case test set (same
+   150-patient list, same `seed=42` split), so the two sets of plots
+   are directly comparable frame for frame.
+3. ``plot_macro_dice_bar_chart`` / ``plot_per_class_dice_box`` -- read
+   an iteration's ``evaluation_report.json`` (still on disk under
+   ``/tmp/deliverables/``, per the project's established naming).
+   ``plot_macro_dice_bar_chart`` plots macro test Dice across
+   iterations 8-12 as a bar chart; ``plot_per_class_dice_box`` plots
+   one iteration's per-case Dice split by class (RV/Myo/LV) as a box
+   plot, via :func:`miai_visualization.metrics.plot_metric_summary`
+   (``kind="bar"``/``"box"``) -- run for both the twelfth iteration and
+   the eighth/baseline, so the two class-wise distributions can be
+   compared directly.
 4. ``run_qc_montages`` -- runs the actual
    :class:`~miai_pipeline.stages.visualization.VisualizationStage`
    (unmodified, the same class ``examples/segmentation_pipeline.py``
-   already uses) over every one of the twelfth iteration's 60 held-out
+   already uses) over every one of an iteration's 60 held-out
    test-set images, writing one QC slice-montage PNG per case. This is
    the same code path ``examples/validate_acdc.py --visualize`` now
    also runs at the end of a live pipeline run (see that script's
    module docstring) -- this function demonstrates it end to end
-   against a completed run without waiting for a new one.
+   against a completed run without waiting for a new one. Run for both
+   the twelfth iteration and the eighth/baseline.
 
 This script hardcodes the specific `/tmp/...` paths this sandbox
 session's twelve ACDC iterations wrote their logs/outputs/reports to
@@ -104,10 +113,20 @@ _EVAL_REPORTS = {
 #: every case plus manifest.json listing the 60 test cases.
 _ITERATION_12_OUTPUT_DIR = Path("/tmp/acdc_validation_out_150_resunet_noattn")
 
+#: The eighth (reference-baseline) iteration's full pipeline output
+#: directory -- same layout as the twelfth's, also still on disk. Every
+#: iteration uses the same 150-patient list and the same
+#: `_patient_level_split(..., seed=42)` call, so its 60-case test set
+#: is identical to the twelfth iteration's -- confirmed by comparing
+#: both manifests' `test` image filenames before relying on this.
+_ITERATION_8_OUTPUT_DIR = Path("/tmp/acdc_validation_out_150_earlystop")
+
 #: Test cases used for the prediction-vs-ground-truth comparison plots:
 #: the two weakest twelfth-iteration cases (see docs/
 #: real_data_validation.md's "Twelfth iteration" section) plus one
-#: representative case near the test set's median Dice.
+#: representative case near the test set's median Dice. Same cases are
+#: used for the eighth iteration's comparison plots, since the test
+#: set is identical -- lets the two be compared frame for frame.
 _COMPARISON_CASES = ["patient142_frame12", "patient086_frame08", "patient001_frame01"]
 
 #: Matches this project's training-log line format, e.g. "Epoch 19/50
@@ -218,11 +237,17 @@ def plot_all_training_curves(output_dir: Path) -> list[Path]:
     return written
 
 
-def plot_all_case_comparisons(output_dir: Path) -> list[Path]:
-    """Plot ground-truth-vs-prediction comparisons for a few twelfth-iteration cases.
+def plot_all_case_comparisons(output_dir: Path, iteration_dir: Path, label: str) -> list[Path]:
+    """Plot ground-truth-vs-prediction comparisons for the fixed comparison cases.
 
     Args:
         output_dir: Directory PNGs are written to.
+        iteration_dir: A completed run's full pipeline output directory
+            (e.g. ``_ITERATION_12_OUTPUT_DIR``), providing
+            ``padded_images``/``padded_labels``/``predictions``.
+        label: Short tag identifying the iteration, used in the plot
+            titles (e.g. ``"8th (baseline)"``) so two iterations' PNGs
+            written to the same case are visually distinguishable.
 
     Returns:
         Two PNG paths per case in ``_COMPARISON_CASES`` (a mask
@@ -230,17 +255,17 @@ def plot_all_case_comparisons(output_dir: Path) -> list[Path]:
     """
     written: list[Path] = []
     for case in _COMPARISON_CASES:
-        image_path = _ITERATION_12_OUTPUT_DIR / "padded_images" / f"{case}_preprocessed.nii.gz"
-        label_path = _ITERATION_12_OUTPUT_DIR / "padded_labels" / f"{case}_gt_preprocessed.nii.gz"
-        pred_path = _ITERATION_12_OUTPUT_DIR / "predictions" / f"{case}_preprocessed_pred.nii.gz"
+        image_path = iteration_dir / "padded_images" / f"{case}_preprocessed.nii.gz"
+        label_path = iteration_dir / "padded_labels" / f"{case}_gt_preprocessed.nii.gz"
+        pred_path = iteration_dir / "predictions" / f"{case}_preprocessed_pred.nii.gz"
 
         image = sitk.GetArrayFromImage(sitk.ReadImage(str(image_path)))
-        label = sitk.GetArrayFromImage(sitk.ReadImage(str(label_path)))
+        gt_label = sitk.GetArrayFromImage(sitk.ReadImage(str(label_path)))
         prediction = sitk.GetArrayFromImage(sitk.ReadImage(str(pred_path)))
 
         written.append(
             plot_comparison(
-                {"Ground truth": label, "Prediction": prediction},
+                {"Ground truth": gt_label, "Prediction": prediction},
                 str(output_dir / f"{case}_gt_vs_prediction.png"),
                 PlotComparisonConfig(cmap="viridis", include_difference_map=True),
             )
@@ -250,7 +275,9 @@ def plot_all_case_comparisons(output_dir: Path) -> list[Path]:
                 image,
                 str(output_dir / f"{case}_mri_with_prediction_overlay.png"),
                 PlotSliceConfig(
-                    mask_cmap="Reds", mask_alpha=0.45, title=f"{case}: MRI + predicted mask"
+                    mask_cmap="Reds",
+                    mask_alpha=0.45,
+                    title=f"{case} ({label}): MRI + predicted mask",
                 ),
                 mask=prediction,
             )
@@ -258,68 +285,79 @@ def plot_all_case_comparisons(output_dir: Path) -> list[Path]:
     return written
 
 
-def plot_all_metric_summaries(output_dir: Path) -> list[Path]:
-    """Plot a cross-iteration macro-Dice bar chart and a per-class Dice box plot.
+def plot_macro_dice_bar_chart(output_dir: Path) -> Path:
+    """Plot a cross-iteration macro test Dice bar chart (8th-12th).
 
     Args:
-        output_dir: Directory PNGs are written to.
+        output_dir: Directory the PNG is written to.
 
     Returns:
-        The two PNG paths written, in that order.
+        The PNG path written.
     """
-    written: list[Path] = []
-
     macro_dice = {}
     for iteration, report_path in _EVAL_REPORTS.items():
         report = json.loads(report_path.read_text())
         macro_dice[iteration] = report["mean"]["dice"]
-    written.append(
-        plot_metric_summary(
-            macro_dice,
-            str(output_dir / "macro_test_dice_by_iteration.png"),
-            PlotMetricSummaryConfig(
-                kind="bar",
-                title="Macro test Dice by iteration (8th-12th)",
-                ylabel="macro Dice (foreground only)",
-            ),
-        )
+    return plot_metric_summary(
+        macro_dice,
+        str(output_dir / "macro_test_dice_by_iteration.png"),
+        PlotMetricSummaryConfig(
+            kind="bar",
+            title="Macro test Dice by iteration (8th-12th)",
+            ylabel="macro Dice (foreground only)",
+        ),
     )
 
-    twelfth_report = json.loads(_EVAL_REPORTS["12th"].read_text())
+
+def plot_per_class_dice_box(report_path: Path, output_dir: Path, label: str) -> Path:
+    """Plot a per-case, per-class (RV/Myo/LV) test Dice box plot for one iteration.
+
+    Args:
+        report_path: An iteration's ``evaluation_report.json``.
+        output_dir: Directory the PNG is written to.
+        label: Short tag identifying the iteration, used in the plot
+            title and output filename (e.g. ``"8th (baseline)"``).
+
+    Returns:
+        The PNG path written.
+    """
+    report = json.loads(report_path.read_text())
     per_class_dice = {
-        "RV": [case["dice_class_1"] for case in twelfth_report["per_case"]],
-        "Myo": [case["dice_class_2"] for case in twelfth_report["per_case"]],
-        "LV": [case["dice_class_3"] for case in twelfth_report["per_case"]],
+        "RV": [case["dice_class_1"] for case in report["per_case"]],
+        "Myo": [case["dice_class_2"] for case in report["per_case"]],
+        "LV": [case["dice_class_3"] for case in report["per_case"]],
     }
-    written.append(
-        plot_metric_summary(
-            per_class_dice,
-            str(output_dir / "iteration12_per_class_dice_distribution.png"),
-            PlotMetricSummaryConfig(
-                kind="box",
-                title="Twelfth iteration: per-case test Dice by class (60 test cases)",
-                ylabel="Dice",
-            ),
-        )
+    slug = re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_")
+    return plot_metric_summary(
+        per_class_dice,
+        str(output_dir / f"{slug}_per_class_dice_distribution.png"),
+        PlotMetricSummaryConfig(
+            kind="box",
+            title=f"{label}: per-case test Dice by class (60 test cases)",
+            ylabel="Dice",
+        ),
     )
-    return written
 
 
-def run_qc_montages(output_dir: Path) -> list[Path]:
-    """Run VisualizationStage over every twelfth-iteration test-set image.
+def run_qc_montages(output_dir: Path, iteration_dir: Path) -> list[Path]:
+    """Run VisualizationStage over every one of an iteration's test-set images.
 
     The same class ``examples/validate_acdc.py --visualize`` now runs
     at the end of a live pipeline run -- this function exercises it
-    against the twelfth iteration's already-completed output instead
-    of waiting for a new run.
+    against a completed run's already-existing output instead of
+    waiting for a new one.
 
     Args:
         output_dir: Directory QC montage PNGs are written to.
+        iteration_dir: A completed run's full pipeline output
+            directory (e.g. ``_ITERATION_12_OUTPUT_DIR``), providing
+            ``manifest.json``.
 
     Returns:
-        One path per test-set case (60 for the twelfth iteration).
+        One path per test-set case (60 for both the eighth and
+        twelfth iterations, since their test sets are identical).
     """
-    manifest = json.loads((_ITERATION_12_OUTPUT_DIR / "manifest.json").read_text())
+    manifest = json.loads((iteration_dir / "manifest.json").read_text())
     test_image_paths = [Path(case["image"]) for case in manifest["test"]]
 
     context = PipelineContext()
@@ -345,22 +383,35 @@ def main() -> None:
 
     output_dir: Path = args.output_dir
     curves_dir = output_dir / "curves"
-    cases_dir = output_dir / "case_comparisons"
     summaries_dir = output_dir / "metric_summaries"
-    qc_dir = output_dir / "qc_montages"
 
     curve_paths = plot_all_training_curves(curves_dir)
-    case_paths = plot_all_case_comparisons(cases_dir)
-    summary_paths = plot_all_metric_summaries(summaries_dir)
-    qc_paths = run_qc_montages(qc_dir)
-    qc_zip = _zip_files(qc_paths, output_dir / "iteration12_qc_montages.zip")
+    macro_bar_path = plot_macro_dice_bar_chart(summaries_dir)
+
+    iterations = [
+        ("12th (no attention)", _ITERATION_12_OUTPUT_DIR, _EVAL_REPORTS["12th"], "iteration12"),
+        ("8th (baseline)", _ITERATION_8_OUTPUT_DIR, _EVAL_REPORTS["8th"], "iteration8"),
+    ]
+
+    case_paths: list[Path] = []
+    box_paths: list[Path] = []
+    qc_zips: list[Path] = []
+    for label, iteration_dir, report_path, slug in iterations:
+        cases_dir = output_dir / "case_comparisons" / slug
+        case_paths += plot_all_case_comparisons(cases_dir, iteration_dir, label)
+        box_paths.append(plot_per_class_dice_box(report_path, summaries_dir, label))
+
+        qc_dir = output_dir / "qc_montages" / slug
+        qc_paths = run_qc_montages(qc_dir, iteration_dir)
+        qc_zips.append(_zip_files(qc_paths, output_dir / f"{slug}_qc_montages.zip"))
 
     print()
     print("=== ACDC results visualization finished ===")
     print(f"Training curves: {len(curve_paths)} PNGs under {curves_dir}")
-    print(f"Case comparisons: {len(case_paths)} PNGs under {cases_dir}")
-    print(f"Metric summaries: {len(summary_paths)} PNGs under {summaries_dir}")
-    print(f"QC montages: {len(qc_paths)} PNGs under {qc_dir} (zipped to {qc_zip})")
+    print(f"Macro Dice bar chart: {macro_bar_path}")
+    print(f"Case comparisons: {len(case_paths)} PNGs under {output_dir / 'case_comparisons'}")
+    print(f"Per-class Dice box plots: {box_paths}")
+    print(f"QC montages zipped to: {qc_zips}")
 
 
 if __name__ == "__main__":
