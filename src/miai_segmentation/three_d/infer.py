@@ -1,5 +1,7 @@
-"""Sliding-window inference for a trained 3D segmentation model, binary
-or multi-class (see :attr:`InferenceConfig.num_classes`)."""
+"""Sliding-window inference for a trained 3D segmentation model.
+
+Binary or multi-class (see :attr:`InferenceConfig.num_classes`).
+"""
 
 from __future__ import annotations
 

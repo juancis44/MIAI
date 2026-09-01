@@ -84,8 +84,8 @@ class MetricsConfig(MIAIBaseConfig):
             ``include_volume_similarity`` reports ``volume_
             similarity_class_{c}`` -- each computed the same way as
             ``dice_class_{c}``: on that class's one-hot channel alone
-            (prediction and ground truth both restricted to \"is this
-            voxel class ``c``\"), not derived from the macro-averaged
+            (prediction and ground truth both restricted to "is this
+            voxel class ``c``"), not derived from the macro-averaged
             value.
     """
 
@@ -274,7 +274,7 @@ def _binary_hausdorff(
 
 
 def _binary_iou(prediction: torch.Tensor, ground_truth: torch.Tensor) -> float:
-    """IoU of a single one-hot channel pair -- ``_binary_dice``'s counterpart."""
+    """Compute IoU of a single one-hot channel pair -- ``_binary_dice``'s counterpart."""
     iou_metric = MeanIoU(include_background=True, reduction="mean", get_not_nans=False)
     iou_metric(y_pred=prediction, y=ground_truth)
     aggregated = iou_metric.aggregate()
