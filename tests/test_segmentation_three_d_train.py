@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pytest
 import torch
 from monai.data import DataLoader, Dataset, decollate_batch
+from monai.losses import DiceLoss
 from monai.metrics import DiceMetric
 from monai.transforms import AsDiscrete, Compose, EnsureTyped
 
@@ -353,6 +354,67 @@ def _multiclass_dice_on_loader(
     metric_tensor = aggregated[0] if isinstance(aggregated, tuple) else aggregated
     dice_metric.reset()
     return float(metric_tensor.item())
+
+
+def test_train_model_class_weights_reach_dice_loss(tmp_path: Path) -> None:
+    """class_weights is a new TrainingConfig field -- confirm it actually
+    reaches monai.losses.DiceLoss's own ``weight`` argument (not just
+    accepted and ignored), for the multi-class path."""
+    train_loader = _make_multiclass_loader(tmp_path / "train", 1)
+    model = build_unet(_MULTICLASS_UNET_CONFIG)
+    weights = (0.1, 2.0, 3.0, 4.0)
+    config = TrainingConfig(max_epochs=1, device="cpu", num_classes=4, class_weights=weights)
+
+    with patch("miai_segmentation.three_d.train.DiceLoss", wraps=DiceLoss) as mock_dice_loss:
+        train_model(model, train_loader, None, config, str(tmp_path / "ckpt"))
+
+    mock_dice_loss.assert_called_once()
+    assert mock_dice_loss.call_args.kwargs["weight"] == weights
+
+
+def test_train_model_class_weights_default_none_unweighted(tmp_path: Path) -> None:
+    """class_weights defaults to None -- confirm DiceLoss is still
+    constructed with weight=None (MONAI's own default, every channel
+    weighted equally), unchanged from this config's original behavior."""
+    train_loader = _make_loader(tmp_path / "train", 1)
+    model = build_unet(_UNET_CONFIG)
+    config = TrainingConfig(max_epochs=1, device="cpu")
+
+    with patch("miai_segmentation.three_d.train.DiceLoss", wraps=DiceLoss) as mock_dice_loss:
+        train_model(model, train_loader, None, config, str(tmp_path / "ckpt"))
+
+    mock_dice_loss.assert_called_once()
+    assert mock_dice_loss.call_args.kwargs["weight"] is None
+
+
+def test_train_model_class_weights_wrong_length_raises_before_training(
+    tmp_path: Path,
+) -> None:
+    """A class_weights length mismatched with the loss's actual channel
+    count (num_classes for multi-class, 1 for binary) should fail fast
+    with a clear error, before any batch is even iterated."""
+    train_loader = _CountingLoader(_make_multiclass_loader(tmp_path / "train", 1))
+    model = build_unet(_MULTICLASS_UNET_CONFIG)
+    # 3 weights given, but num_classes=4 (background + RV + Myo + LV).
+    config = TrainingConfig(
+        max_epochs=1, device="cpu", num_classes=4, class_weights=(1.0, 2.0, 3.0)
+    )
+
+    with pytest.raises(SegmentationError):
+        train_model(model, train_loader, None, config, str(tmp_path / "ckpt"))
+
+    assert train_loader.iterations == 0
+
+
+def test_train_model_class_weights_wrong_length_binary_raises(tmp_path: Path) -> None:
+    """Same fail-fast check, binary path: class_weights must have exactly
+    1 entry there (num_classes defaults to 1)."""
+    train_loader = _make_loader(tmp_path / "train", 1)
+    model = build_unet(_UNET_CONFIG)
+    config = TrainingConfig(max_epochs=1, device="cpu", class_weights=(1.0, 2.0))
+
+    with pytest.raises(SegmentationError):
+        train_model(model, train_loader, None, config, str(tmp_path / "ckpt"))
 
 
 @pytest.mark.slow

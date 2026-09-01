@@ -109,6 +109,24 @@ class TrainingConfig(MIAIBaseConfig):
             selection is driven by how well the model segments the
             actual structures of interest, not by the (typically much
             larger, so numerically dominant) background class.
+        class_weights: Optional per-channel weight passed straight
+            through to :class:`monai.losses.DiceLoss`'s own ``weight``
+            argument -- scales each output channel's contribution to
+            the training loss, so a structure that is small/hard (and
+            would otherwise be outweighed by easier or larger ones) can
+            be given more influence over the gradient without changing
+            anything else about the loss (still Dice, still on the same
+            channels validation Dice is computed over). ``None`` (the
+            default) is passed straight through as ``weight=None``,
+            MONAI's own default -- every channel weighted equally,
+            unchanged from this config's original behavior. When set,
+            its length must equal the number of channels the loss
+            actually sees: ``num_classes`` for the multi-class path
+            (index 0 is background, since ``include_background=True``
+            for the loss even though the *validation metric* excludes
+            it -- see ``num_classes`` above), or ``1`` for the binary
+            path. A mismatched length raises :class:`SegmentationError`
+            immediately, before any training happens.
     """
 
     max_epochs: int = 100
@@ -121,6 +139,7 @@ class TrainingConfig(MIAIBaseConfig):
     device: str = "cpu"
     checkpoint_name: str = "best_model.pt"
     num_classes: int = 1
+    class_weights: tuple[float, ...] | None = None
 
 
 def train_model(
@@ -169,13 +188,23 @@ def train_model(
     model = model.to(device)
 
     multiclass = config.num_classes > 1
+    expected_weight_channels = config.num_classes if multiclass else 1
+    if config.class_weights is not None and len(config.class_weights) != expected_weight_channels:
+        raise SegmentationError(
+            f"class_weights has {len(config.class_weights)} entries, but the loss "
+            f"has {expected_weight_channels} channel(s) "
+            f"({'num_classes' if multiclass else 'binary, num_classes=1'})."
+        )
+
     if multiclass:
-        loss_function = DiceLoss(to_onehot_y=True, softmax=True, include_background=True)
+        loss_function = DiceLoss(
+            to_onehot_y=True, softmax=True, include_background=True, weight=config.class_weights
+        )
         dice_metric = DiceMetric(include_background=False, reduction="mean", get_not_nans=False)
         post_pred = Compose([AsDiscrete(argmax=True, to_onehot=config.num_classes)])
         post_label = Compose([AsDiscrete(to_onehot=config.num_classes)])
     else:
-        loss_function = DiceLoss(sigmoid=True, include_background=True)
+        loss_function = DiceLoss(sigmoid=True, include_background=True, weight=config.class_weights)
         dice_metric = DiceMetric(include_background=True, reduction="mean", get_not_nans=False)
         post_pred = Compose([AsDiscrete(threshold=0.5)])
         post_label = Compose([AsDiscrete(threshold=0.5)])

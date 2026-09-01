@@ -321,6 +321,38 @@ the tenth/eleventh iterations' problems trace back to the residual
 architecture itself rather than to attention. See
 ``docs/real_data_validation.md`` for the result.
 
+**Thirteenth iteration: class-weighted Dice loss, back on the eighth
+iteration's plain ``UNet`` baseline.** Five consecutive post-eighth-
+iteration levers (cosine annealing, attention at two bottleneck
+widths, no attention at all) have now all underperformed the eighth
+iteration's plain, regularized ``UNet`` -- so this iteration reverts
+``_ARCHITECTURE`` back to ``kind="unet"`` (MONAI's own ``UNet``, not
+``ResAttentionUNet``) with the eighth iteration's exact settings
+(channels/strides/num_res_units unchanged, ``dropout=_DROPOUT``,
+constant ``_MAX_LEARNING_RATE``, ``_WEIGHT_DECAY``,
+``_EARLY_STOPPING_PATIENCE``), so this iteration's only variable
+versus the eighth iteration's baseline is the loss function itself --
+not a confound from also reintroducing a rejected architecture change.
+``TrainingConfig`` gains ``class_weights: tuple[float, ...] | None``
+(default ``None``, so every prior iteration's ``DiceLoss`` call stays
+byte-for-byte reproducible) -- passed straight through to
+:class:`monai.losses.DiceLoss`'s own ``weight`` argument, scaling each
+class's contribution to the training loss instead of weighting every
+channel equally. This iteration sets ``_CLASS_WEIGHTS = (0.5, 2.0,
+1.5, 1.0)`` for (background, RV, myocardium, LV) -- background
+downweighted (large, easy, already well-segmented, no benefit from
+more emphasis), RV weighted highest (the most consistently volatile
+structure across iterations 6, 8, 9, and 10, and the eighth
+iteration's own weakest per-class Dice at 0.6952), myocardium next
+(the structure that took the worst damage in the twelfth iteration,
+0.6856), and LV left at ``1.0`` (already the strongest per-class Dice
+at 0.8610, within reach of the binary ceiling -- no reason to push it
+further at the other classes' expense). The goal: directly test
+whether giving the loss more reason to get RV/myocardium right, on top
+of the architecture that is already known to work best, moves those
+classes' Dice up without trading away LV or background quality. See
+``docs/real_data_validation.md`` for the result.
+
 Visualization: an optional ``--visualize`` flag runs
 :class:`~miai_pipeline.stages.visualization.VisualizationStage` (the
 same one ``examples/segmentation_pipeline.py``'s generic pipeline
@@ -360,7 +392,7 @@ from miai_pipeline.stages.visualization import VisualizationStage, Visualization
 from miai_segmentation.modality import SegmentationInferenceConfig, SegmentationModalityConfig
 from miai_segmentation.three_d.train import TrainingConfig
 from miai_segmentation.two_d.infer import InferenceConfig
-from miai_segmentation.two_d.models import ArchitectureConfig, ResAttentionUnetConfig
+from miai_segmentation.two_d.models import ArchitectureConfig, UNetConfig
 from miai_transforms.config import TransformConfig, TransformSpec
 
 logger = get_logger(__name__)
@@ -504,49 +536,44 @@ _EARLY_STOPPING_PATIENCE = 10
 #: variable versus the eighth iteration.
 _MAX_LEARNING_RATE = 1e-3
 
-#: Attention gate bottleneck divisor -- see the module docstring's
-#: "Eleventh iteration" section. Ignored below since ``_USE_ATTENTION
-#: = False`` this iteration (kept, rather than deleted, so the eleventh
-#: iteration's exact value stays visible in history); ``2`` is
-#: ``ResAttentionUnetConfig.attention_reduction``'s own default, what
-#: the tenth iteration ran with.
-_ATTENTION_REDUCTION = 2
-
-#: Whether :class:`~miai_segmentation.two_d.models.ResAttentionUNet`
-#: attention-gates its skip connections at all -- see the module
-#: docstring's "Twelfth iteration" section. ``False`` here removes the
-#: attention gates entirely, isolating the residual-block architecture
-#: on its own versus the tenth iteration's attention-gated run
-#: (``attention_reduction=2``, the "standard" configuration).
-_USE_ATTENTION = False
+#: Per-class weight passed to ``TrainingConfig.class_weights`` -- see
+#: the module docstring's "Thirteenth iteration" section for the
+#: reasoning behind each value. Order matches this project's label
+#: convention (background=0, RV=1, myocardium=2, LV=3, see
+#: ``_prepare_case_labels``'s docstring below): background
+#: downweighted (large, easy, no benefit from more emphasis), RV
+#: weighted highest (the most consistently volatile structure across
+#: iterations 6, 8, 9, and 10, and the eighth iteration's own weakest
+#: per-class Dice), myocardium next (took the worst damage in the
+#: twelfth iteration), LV left at ``1.0`` (already the strongest
+#: per-class Dice, close to the binary ceiling).
+_CLASS_WEIGHTS = (0.5, 2.0, 1.5, 1.0)
 
 #: 2D per-slice architecture (see the module docstring's "Third
 #: iteration" section for why 2D, not 3D, is the right fit for this
-#: data): ``kind="res_attention_unet"``, new in the tenth iteration
-#: (see that section) -- same channel depth/width every prior iteration
+#: data): ``kind="unet"`` -- MONAI's own ``UNet``, the eighth
+#: iteration's baseline architecture, reverted to here per the module
+#: docstring's "Thirteenth iteration" section (five consecutive
+#: post-eighth-iteration architecture/schedule levers have now all
+#: underperformed it). Same channel depth/width every iteration has
 #: used (16->32->64->128, three stride-2 levels, 2 residual units per
-#: level), with attention-gated skip connections on top of the residual
-#: blocks when ``use_attention`` is ``True`` -- ``False`` here (new in
-#: the twelfth iteration) makes this a plain residual U-Net instead.
-#: ``out_channels=_NUM_CLASSES`` (up from the binary iterations'
-#: implicit ``1``) is what actually makes this a multi-class model --
-#: see the module docstring's "Fifth iteration" section for how
-#: ``TrainingConfig``/``InferenceConfig``/``MetricsConfig`` pick up the
-#: same ``_NUM_CLASSES`` to train, infer, and score consistently as
-#: 4-class instead of binary. ``dropout=_DROPOUT`` is unchanged from
-#: the sixth iteration.
+#: level). ``out_channels=_NUM_CLASSES`` (up from the binary
+#: iterations' implicit ``1``) is what actually makes this a
+#: multi-class model -- see the module docstring's "Fifth iteration"
+#: section for how ``TrainingConfig``/``InferenceConfig``/
+#: ``MetricsConfig`` pick up the same ``_NUM_CLASSES`` to train, infer,
+#: and score consistently as 4-class instead of binary.
+#: ``dropout=_DROPOUT`` is unchanged from the sixth iteration.
 _ARCHITECTURE = SegmentationModalityConfig(
     modality="two_d",
     two_d=ArchitectureConfig(
-        kind="res_attention_unet",
-        res_attention_unet=ResAttentionUnetConfig(
+        kind="unet",
+        unet=UNetConfig(
             channels=(16, 32, 64, 128),
             strides=(2, 2, 2),
             num_res_units=2,
             out_channels=_NUM_CLASSES,
             dropout=_DROPOUT,
-            attention_reduction=_ATTENTION_REDUCTION,
-            use_attention=_USE_ATTENTION,
         ),
     ),
 )
@@ -862,6 +889,7 @@ def run_validation(
                 early_stopping_patience=_EARLY_STOPPING_PATIENCE,
                 device="cpu",
                 num_classes=_NUM_CLASSES,
+                class_weights=_CLASS_WEIGHTS,
             ),
         )
     )
