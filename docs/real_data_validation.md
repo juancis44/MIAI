@@ -1063,3 +1063,45 @@ Outputs land under `--output-dir` (git-ignored, like every other
 `examples/output/` run): prepared labels, preprocessed/padded images
 and labels, the manifest split, the checkpoint, per-case predictions,
 and `evaluation_report.json`.
+
+## Visualizing results
+
+Every iteration above was reported as plain text and markdown tables
+-- twelve iterations, zero images. `miai_visualization` (per-slice and
+montage plots, side-by-side comparisons with a difference map,
+training curves from a CSV log, per-case/per-group bar and box
+summaries) existed the whole time but was only ever wired into the
+generic `examples/segmentation_pipeline.py` demo via
+`VisualizationStage`, never into this effort.
+
+Two additions close that gap, both backward compatible:
+
+- `examples/validate_acdc.py` gained a `--visualize` flag (off by
+  default -- every iteration's numbers above were produced without
+  it). When passed, it runs `VisualizationStage` -- the same class the
+  generic pipeline demo uses, unmodified -- over every held-out
+  test-set image right after evaluation, writing one QC slice-montage
+  PNG per case to `<output-dir>/qc_montages/`.
+- `examples/visualize_acdc_results.py` is a new, separate script that
+  builds four kinds of plot from a *completed* run's logs and
+  `evaluation_report.json`, without retraining or needing
+  `--visualize`: training curves (a dedicated twelfth-iteration
+  train-loss/val-Dice chart, and a 4-way validation-Dice comparison
+  across the eighth/tenth/eleventh/twelfth iterations on the same
+  axes -- the epoch-21/epoch-23 collapses are immediately visible as a
+  sharp drop, where the text writeups above could only describe
+  them), ground-truth-vs-prediction comparisons for a few twelfth-
+  iteration test cases (a difference map between the two label maps,
+  plus the predicted mask overlaid on the source MRI for anatomical
+  context), and metric summaries (macro test Dice across iterations
+  8-12 as a bar chart, and the twelfth iteration's per-case Dice split
+  by class as a box plot). It also exercises `VisualizationStage`
+  itself, the same way the new `--visualize` flag does, against the
+  twelfth iteration's already-completed test set -- so this session's
+  visualization work is confirmed end to end without waiting for
+  another multi-hour training run.
+
+The script hardcodes this sandbox session's specific `/tmp/...`
+output/log paths (see its module docstring) -- it is a one-off
+analysis script for this validation effort's existing outputs, not a
+general reusable example like `segmentation_pipeline.py`.

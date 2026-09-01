@@ -172,6 +172,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   UNet, which remains by a clear margin the best-performing
   configuration found. Full writeup in `docs/real_data_validation.md`.
 
+- **ACDC results visualization**: `examples/validate_acdc.py` gains an
+  optional `--visualize` flag (off by default, so every iteration's
+  numbers above were produced without it) that runs
+  `miai_pipeline.stages.visualization.VisualizationStage` -- the same
+  class `examples/segmentation_pipeline.py`'s generic pipeline already
+  uses, unmodified -- over every held-out test-set image right after
+  evaluation, writing one QC slice-montage PNG per case. Also adds a
+  new script, `examples/visualize_acdc_results.py`, which builds
+  training-curve, ground-truth-vs-prediction, and per-iteration
+  metric-summary plots from a completed run's logs and
+  `evaluation_report.json` using `miai_visualization` (until now wired
+  into the generic pipeline demo only, never into this validation
+  effort) -- no retraining needed. Full description in
+  `docs/real_data_validation.md`'s "Visualizing results" section.
+
 ## [1.0.0] - 2026-08-28
 
 First `1.0.0` release: the ACDC real-data validation effort (five

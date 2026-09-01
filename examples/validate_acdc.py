@@ -321,6 +321,19 @@ the tenth/eleventh iterations' problems trace back to the residual
 architecture itself rather than to attention. See
 ``docs/real_data_validation.md`` for the result.
 
+Visualization: an optional ``--visualize`` flag runs
+:class:`~miai_pipeline.stages.visualization.VisualizationStage` (the
+same one ``examples/segmentation_pipeline.py``'s generic pipeline
+uses) over every held-out test-set image after evaluation, writing
+one QC slice-montage PNG per case to ``<output-dir>/qc_montages/``.
+Off by default so it doesn't add ~60 PNG writes to every run; every
+prior iteration's numbers in this docstring/``docs/real_data_
+validation.md`` were produced without it. See ``examples/
+visualize_acdc_results.py`` for training-curve, prediction-vs-ground-
+truth, and per-iteration metric-summary plots built from a completed
+run's logs and ``evaluation_report.json``, without needing this flag
+or a rerun.
+
 Run:
     python examples/validate_acdc.py --data-dir /path/to/ACDC \\
         --output-dir examples/output/acdc_validation
@@ -343,6 +356,7 @@ from miai_pipeline.stages.evaluation import EvaluationStage, EvaluationStageConf
 from miai_pipeline.stages.inference import InferenceStage, InferenceStageConfig
 from miai_pipeline.stages.preprocessing import PreprocessingConfig, PreprocessingStage
 from miai_pipeline.stages.training import TrainingStage, TrainingStageConfig
+from miai_pipeline.stages.visualization import VisualizationStage, VisualizationStageConfig
 from miai_segmentation.modality import SegmentationInferenceConfig, SegmentationModalityConfig
 from miai_segmentation.three_d.train import TrainingConfig
 from miai_segmentation.two_d.infer import InferenceConfig
@@ -762,8 +776,23 @@ def _pad_to_divisible(
     return out_images, out_labels
 
 
-def run_validation(data_dir: Path, output_dir: Path, max_epochs: int) -> dict[str, object]:
-    """Run the full preprocess -> split -> train -> infer -> evaluate pipeline."""
+def run_validation(
+    data_dir: Path, output_dir: Path, max_epochs: int, visualize: bool = False
+) -> dict[str, object]:
+    """Run the full preprocess -> split -> train -> infer -> evaluate pipeline.
+
+    Args:
+        data_dir: ACDC root dir with ``patientXXX/`` subfolders.
+        output_dir: Where every stage's outputs are written.
+        max_epochs: Training epoch ceiling (see ``TrainingConfig.
+            early_stopping_patience`` for why this is a ceiling, not a
+            fixed budget).
+        visualize: If ``True``, runs ``VisualizationStage`` over every
+            held-out test-set image after evaluation, writing one QC
+            slice-montage PNG per case to ``<output_dir>/qc_montages/``.
+            Off by default -- see the module docstring's
+            "Visualization" section.
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
 
     image_paths, label_paths, patient_ids = build_case_lists(data_dir, DEFAULT_PATIENTS, output_dir)
@@ -889,12 +918,25 @@ def run_validation(data_dir: Path, output_dir: Path, max_epochs: int) -> dict[st
     if named_class_metrics:
         logger.info("Per-class mean test metrics: %s", named_class_metrics)
 
+    qc_montage_paths: list[str] = []
+    if visualize:
+        test_image_paths = [Path(case["image"]) for case in manifest["test"]]
+        qc_context = PipelineContext()
+        qc_context.set("preprocessed_paths", test_image_paths)
+        qc_stage = VisualizationStage(
+            VisualizationStageConfig(output_dir=str(output_dir / "qc_montages"))
+        )
+        qc_context = qc_stage.run(qc_context)
+        qc_montage_paths = [str(p) for p in qc_context.require("qc_visualization_paths")]
+        logger.info("Wrote %d QC montages to %s", len(qc_montage_paths), output_dir / "qc_montages")
+
     return {
         "manifest_sizes": {k: len(v) for k, v in manifest.items()},
         "checkpoint": context.require("model_checkpoint_path"),
         "mean_metrics": metrics["mean"],
         "named_class_metrics": named_class_metrics,
         "per_case": metrics["per_case"],
+        "qc_montage_paths": qc_montage_paths,
     }
 
 
@@ -914,10 +956,17 @@ def main() -> None:
         "what the fourth/fifth/sixth iterations used; the third iteration's smaller "
         "50-patient subset used 40 -- pass explicitly to match any of those.",
     )
+    parser.add_argument(
+        "--visualize",
+        action="store_true",
+        help="Write one QC slice-montage PNG per held-out test case to "
+        "<output-dir>/qc_montages/ after evaluation (see the module docstring's "
+        "'Visualization' section). Off by default.",
+    )
     args = parser.parse_args()
 
     configure_logging(level="INFO", force=True)
-    summary = run_validation(args.data_dir, args.output_dir, args.max_epochs)
+    summary = run_validation(args.data_dir, args.output_dir, args.max_epochs, args.visualize)
 
     print()
     print("=== ACDC real-data validation finished ===")
@@ -925,6 +974,8 @@ def main() -> None:
     print(f"Checkpoint: {summary['checkpoint']}")
     print("Mean metrics:")
     print(json.dumps(summary["mean_metrics"], indent=2))
+    if summary["qc_montage_paths"]:
+        print(f"QC montages: {len(summary['qc_montage_paths'])} written under --output-dir")
 
 
 if __name__ == "__main__":

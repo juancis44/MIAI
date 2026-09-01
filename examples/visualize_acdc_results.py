@@ -1,0 +1,367 @@
+"""Visualize the ACDC real-data validation effort's results.
+
+``examples/validate_acdc.py`` has run twelve iterations (see
+``docs/real_data_validation.md``) and every one of them was reported
+as plain text and markdown tables -- no plot, curve, or image was ever
+produced for any of it. This script closes that gap using
+``miai_visualization`` (a real, tested package that until now was only
+wired into the generic ``examples/segmentation_pipeline.py`` demo, via
+``VisualizationStage``, never into the ACDC effort) against outputs
+the completed iterations already wrote to disk -- no retraining, no
+new pipeline run.
+
+Four kinds of plot, one function each:
+
+1. ``plot_all_training_curves`` -- parses the text training logs
+   iterations 8/10/11/12 wrote (``miai_segmentation.three_d.train``
+   doesn't emit a CSV log itself, only INFO-level text lines) into a
+   per-iteration ``epoch,train_loss,val_dice`` CSV, then calls
+   :func:`miai_visualization.curves.plot_training_curves`: one chart
+   dedicated to the twelfth iteration alone (showing its epoch-23
+   collapse in context), one comparing best-validation-Dice-yet
+   iteration (12th) against the reference baseline (8th) and the two
+   attention-gate iterations (10th/11th) on the same axes.
+2. ``plot_all_case_comparisons`` -- for a handful of twelfth-iteration
+   test cases (the two weakest, `patient142_frame12` and
+   `patient086_frame08`, plus a representative case near the median,
+   `patient001_frame01`), uses
+   :func:`miai_visualization.comparison.plot_comparison` to show the
+   ground-truth and predicted label maps side by side with an absolute
+   difference map, and :func:`miai_visualization.slices.plot_slice` to
+   overlay the prediction on the source MRI for anatomical context.
+3. ``plot_all_metric_summaries`` -- reads every iteration's
+   ``evaluation_report.json`` (still on disk under
+   ``/tmp/deliverables/``, per the project's established naming) and
+   plots macro test Dice across iterations 8-12 as a bar chart via
+   :func:`miai_visualization.metrics.plot_metric_summary` (``kind=
+   "bar"``), plus a box plot of the twelfth iteration's per-case Dice
+   split by class (RV/Myo/LV) via the same function (``kind="box"``).
+4. ``run_qc_montages`` -- runs the actual
+   :class:`~miai_pipeline.stages.visualization.VisualizationStage`
+   (unmodified, the same class ``examples/segmentation_pipeline.py``
+   already uses) over every one of the twelfth iteration's 60 held-out
+   test-set images, writing one QC slice-montage PNG per case. This is
+   the same code path ``examples/validate_acdc.py --visualize`` now
+   also runs at the end of a live pipeline run (see that script's
+   module docstring) -- this function demonstrates it end to end
+   against a completed run without waiting for a new one.
+
+This script hardcodes the specific `/tmp/...` paths this sandbox
+session's twelve ACDC iterations wrote their logs/outputs/reports to
+(see ``docs/real_data_validation.md`` for the full list) -- it is a
+one-off analysis script for this validation effort, not a general
+reusable example, so unlike ``examples/segmentation_pipeline.py`` it
+does not generate its own synthetic data.
+
+Run:
+    python examples/visualize_acdc_results.py --output-dir /tmp/acdc_visualizations
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import json
+import re
+import zipfile
+from pathlib import Path
+
+import SimpleITK as sitk
+
+from miai_pipeline.context import PipelineContext
+from miai_pipeline.stages.visualization import VisualizationStage, VisualizationStageConfig
+from miai_visualization.comparison import PlotComparisonConfig, plot_comparison
+from miai_visualization.curves import PlotTrainingCurvesConfig, plot_training_curves
+from miai_visualization.metrics import PlotMetricSummaryConfig, plot_metric_summary
+from miai_visualization.slices import PlotSliceConfig, plot_slice
+
+#: Where each iteration's text training log lives in this sandbox
+#: session (see docs/real_data_validation.md's "Long background runs"
+#: notes in project memory for the full list; only the four iterations
+#: this comparison needs are listed here).
+_TRAINING_LOGS = {
+    "8th (baseline)": Path("/tmp/acdc_run_150_earlystop.log"),
+    "10th (attention r=2)": Path("/tmp/acdc_run_150_resattn.log"),
+    "11th (attention r=1)": Path("/tmp/acdc_run_150_resattn_r1.log"),
+    "12th (no attention)": Path("/tmp/acdc_run_150_resunet_noattn.log"),
+}
+
+#: Where each iteration's evaluation_report.json was copied for
+#: delivery to the user (see the "Copy the final evaluation report to
+#: /tmp/deliverables/" step every iteration's writeup follows).
+_EVAL_REPORTS = {
+    "8th": Path("/tmp/deliverables/acdc_iteration8_earlystop_evaluation_report.json"),
+    "9th": Path("/tmp/deliverables/acdc_iteration9_cosine_annealing_evaluation_report.json"),
+    "10th": Path("/tmp/deliverables/acdc_iteration10_res_attention_unet_evaluation_report.json"),
+    "11th": Path("/tmp/deliverables/acdc_iteration11_wide_gate_bottleneck_evaluation_report.json"),
+    "12th": Path(
+        "/tmp/deliverables/acdc_iteration12_plain_res_unet_no_attention_evaluation_report.json"
+    ),
+}
+
+#: The twelfth iteration's full pipeline output directory -- still on
+#: disk this session, has padded_images/padded_labels/predictions for
+#: every case plus manifest.json listing the 60 test cases.
+_ITERATION_12_OUTPUT_DIR = Path("/tmp/acdc_validation_out_150_resunet_noattn")
+
+#: Test cases used for the prediction-vs-ground-truth comparison plots:
+#: the two weakest twelfth-iteration cases (see docs/
+#: real_data_validation.md's "Twelfth iteration" section) plus one
+#: representative case near the test set's median Dice.
+_COMPARISON_CASES = ["patient142_frame12", "patient086_frame08", "patient001_frame01"]
+
+#: Matches this project's training-log line format, e.g. "Epoch 19/50
+#: - train loss: 0.1666" / "Epoch 19/50 - val Dice: 0.7906" -- see
+#: miai_segmentation.three_d.train's INFO logging (there is no CSV
+#: log, only these text lines, which is why this parses them at all).
+_EPOCH_LOG_PATTERN = re.compile(
+    r"Epoch (?P<epoch>\d+)/\d+ - (?P<metric>train loss|val Dice): (?P<value>[\d.]+)"
+)
+
+
+def parse_training_log(log_path: Path) -> list[dict[str, float]]:
+    """Parse per-epoch ``train_loss``/``val_dice`` rows out of a text training log.
+
+    Args:
+        log_path: Path to a ``validate_acdc.py`` run's stdout/stderr
+            log (redirected there by the ``nohup ... > log 2>&1``
+            pattern this project's background runs use).
+
+    Returns:
+        One dict per epoch that has both a train-loss and a val-Dice
+        line (``{"epoch": ..., "train_loss": ..., "val_dice": ...}``),
+        sorted by epoch. An epoch cut off mid-write (e.g. by an
+        interrupted run) contributes no row rather than a partial one.
+    """
+    rows: dict[int, dict[str, float]] = {}
+    for line in log_path.read_text().splitlines():
+        match = _EPOCH_LOG_PATTERN.search(line)
+        if not match:
+            continue
+        epoch = int(match.group("epoch"))
+        key = "train_loss" if match.group("metric") == "train loss" else "val_dice"
+        rows.setdefault(epoch, {})[key] = float(match.group("value"))
+    return [
+        {"epoch": float(epoch), **values}
+        for epoch, values in sorted(rows.items())
+        if "train_loss" in values and "val_dice" in values
+    ]
+
+
+def _write_csv(rows: list[dict[str, float]], fieldnames: list[str], csv_path: Path) -> None:
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(csv_path, "w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def plot_all_training_curves(output_dir: Path) -> list[Path]:
+    """Plot the twelfth iteration's own curve, and a 4-way val-Dice comparison.
+
+    Args:
+        output_dir: Directory PNGs and the intermediate CSVs are
+            written to.
+
+    Returns:
+        Paths to the PNGs written, in the order described in the
+        module docstring's item 1.
+    """
+    written: list[Path] = []
+    parsed = {name: parse_training_log(path) for name, path in _TRAINING_LOGS.items()}
+
+    twelfth_rows = parsed["12th (no attention)"]
+    twelfth_csv = output_dir / "iteration12_training_log.csv"
+    _write_csv(twelfth_rows, ["epoch", "train_loss", "val_dice"], twelfth_csv)
+    written.append(
+        plot_training_curves(
+            str(twelfth_csv),
+            str(output_dir / "iteration12_train_loss_and_val_dice.png"),
+            PlotTrainingCurvesConfig(
+                title="Twelfth iteration (no attention): train loss and val Dice per epoch",
+                ylabel="value",
+            ),
+        )
+    )
+
+    # Combined val-Dice comparison, forward-filled past each run's own
+    # early-stopping point so every line stays flat (not truncated)
+    # once that iteration stopped -- plot_training_curves requires a
+    # numeric value in every row for every requested column.
+    max_epoch = max(int(rows[-1]["epoch"]) for rows in parsed.values())
+    comparison_fieldnames = ["epoch", *parsed.keys()]
+    comparison_rows: list[dict[str, float]] = []
+    last_seen = dict.fromkeys(parsed, 0.0)
+    by_epoch = {
+        name: {int(row["epoch"]): row["val_dice"] for row in rows} for name, rows in parsed.items()
+    }
+    for epoch in range(1, max_epoch + 1):
+        row: dict[str, float] = {"epoch": float(epoch)}
+        for name in parsed:
+            value = by_epoch[name].get(epoch, last_seen[name])
+            last_seen[name] = value
+            row[name] = value
+        comparison_rows.append(row)
+    comparison_csv = output_dir / "val_dice_comparison.csv"
+    _write_csv(comparison_rows, comparison_fieldnames, comparison_csv)
+    written.append(
+        plot_training_curves(
+            str(comparison_csv),
+            str(output_dir / "val_dice_comparison_8th_10th_11th_12th.png"),
+            PlotTrainingCurvesConfig(
+                title="Validation Dice per epoch: baseline vs. the three attention-lever "
+                "iterations (flat after each run's own early stopping)",
+                ylabel="validation Dice",
+            ),
+        )
+    )
+    return written
+
+
+def plot_all_case_comparisons(output_dir: Path) -> list[Path]:
+    """Plot ground-truth-vs-prediction comparisons for a few twelfth-iteration cases.
+
+    Args:
+        output_dir: Directory PNGs are written to.
+
+    Returns:
+        Two PNG paths per case in ``_COMPARISON_CASES`` (a mask
+        comparison and an MRI+prediction overlay), in that order.
+    """
+    written: list[Path] = []
+    for case in _COMPARISON_CASES:
+        image_path = _ITERATION_12_OUTPUT_DIR / "padded_images" / f"{case}_preprocessed.nii.gz"
+        label_path = _ITERATION_12_OUTPUT_DIR / "padded_labels" / f"{case}_gt_preprocessed.nii.gz"
+        pred_path = _ITERATION_12_OUTPUT_DIR / "predictions" / f"{case}_preprocessed_pred.nii.gz"
+
+        image = sitk.GetArrayFromImage(sitk.ReadImage(str(image_path)))
+        label = sitk.GetArrayFromImage(sitk.ReadImage(str(label_path)))
+        prediction = sitk.GetArrayFromImage(sitk.ReadImage(str(pred_path)))
+
+        written.append(
+            plot_comparison(
+                {"Ground truth": label, "Prediction": prediction},
+                str(output_dir / f"{case}_gt_vs_prediction.png"),
+                PlotComparisonConfig(cmap="viridis", include_difference_map=True),
+            )
+        )
+        written.append(
+            plot_slice(
+                image,
+                str(output_dir / f"{case}_mri_with_prediction_overlay.png"),
+                PlotSliceConfig(
+                    mask_cmap="Reds", mask_alpha=0.45, title=f"{case}: MRI + predicted mask"
+                ),
+                mask=prediction,
+            )
+        )
+    return written
+
+
+def plot_all_metric_summaries(output_dir: Path) -> list[Path]:
+    """Plot a cross-iteration macro-Dice bar chart and a per-class Dice box plot.
+
+    Args:
+        output_dir: Directory PNGs are written to.
+
+    Returns:
+        The two PNG paths written, in that order.
+    """
+    written: list[Path] = []
+
+    macro_dice = {}
+    for iteration, report_path in _EVAL_REPORTS.items():
+        report = json.loads(report_path.read_text())
+        macro_dice[iteration] = report["mean"]["dice"]
+    written.append(
+        plot_metric_summary(
+            macro_dice,
+            str(output_dir / "macro_test_dice_by_iteration.png"),
+            PlotMetricSummaryConfig(
+                kind="bar",
+                title="Macro test Dice by iteration (8th-12th)",
+                ylabel="macro Dice (foreground only)",
+            ),
+        )
+    )
+
+    twelfth_report = json.loads(_EVAL_REPORTS["12th"].read_text())
+    per_class_dice = {
+        "RV": [case["dice_class_1"] for case in twelfth_report["per_case"]],
+        "Myo": [case["dice_class_2"] for case in twelfth_report["per_case"]],
+        "LV": [case["dice_class_3"] for case in twelfth_report["per_case"]],
+    }
+    written.append(
+        plot_metric_summary(
+            per_class_dice,
+            str(output_dir / "iteration12_per_class_dice_distribution.png"),
+            PlotMetricSummaryConfig(
+                kind="box",
+                title="Twelfth iteration: per-case test Dice by class (60 test cases)",
+                ylabel="Dice",
+            ),
+        )
+    )
+    return written
+
+
+def run_qc_montages(output_dir: Path) -> list[Path]:
+    """Run VisualizationStage over every twelfth-iteration test-set image.
+
+    The same class ``examples/validate_acdc.py --visualize`` now runs
+    at the end of a live pipeline run -- this function exercises it
+    against the twelfth iteration's already-completed output instead
+    of waiting for a new run.
+
+    Args:
+        output_dir: Directory QC montage PNGs are written to.
+
+    Returns:
+        One path per test-set case (60 for the twelfth iteration).
+    """
+    manifest = json.loads((_ITERATION_12_OUTPUT_DIR / "manifest.json").read_text())
+    test_image_paths = [Path(case["image"]) for case in manifest["test"]]
+
+    context = PipelineContext()
+    context.set("preprocessed_paths", test_image_paths)
+    stage = VisualizationStage(VisualizationStageConfig(output_dir=str(output_dir)))
+    context = stage.run(context)
+    result: list[Path] = context.require("qc_visualization_paths")
+    return result
+
+
+def _zip_files(paths: list[Path], zip_path: Path) -> Path:
+    zip_path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as archive:
+        for path in paths:
+            archive.write(path, arcname=path.name)
+    return zip_path
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--output-dir", type=Path, default=Path("/tmp/acdc_visualizations"))
+    args = parser.parse_args()
+
+    output_dir: Path = args.output_dir
+    curves_dir = output_dir / "curves"
+    cases_dir = output_dir / "case_comparisons"
+    summaries_dir = output_dir / "metric_summaries"
+    qc_dir = output_dir / "qc_montages"
+
+    curve_paths = plot_all_training_curves(curves_dir)
+    case_paths = plot_all_case_comparisons(cases_dir)
+    summary_paths = plot_all_metric_summaries(summaries_dir)
+    qc_paths = run_qc_montages(qc_dir)
+    qc_zip = _zip_files(qc_paths, output_dir / "iteration12_qc_montages.zip")
+
+    print()
+    print("=== ACDC results visualization finished ===")
+    print(f"Training curves: {len(curve_paths)} PNGs under {curves_dir}")
+    print(f"Case comparisons: {len(case_paths)} PNGs under {cases_dir}")
+    print(f"Metric summaries: {len(summary_paths)} PNGs under {summaries_dir}")
+    print(f"QC montages: {len(qc_paths)} PNGs under {qc_dir} (zipped to {qc_zip})")
+
+
+if __name__ == "__main__":
+    main()

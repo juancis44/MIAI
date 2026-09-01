@@ -498,6 +498,15 @@ and `inference: {roi_size: ..., ...}` as
   underperformed the eighth iteration's plain regularized UNet, still
   the best-performing configuration found. See
   `docs/real_data_validation.md`.
+- [x] ACDC results visualization: twelve iterations had been reported
+  as text/tables only. Added `--visualize` to `examples/
+  validate_acdc.py` (off by default -- wires the existing
+  `VisualizationStage` into the ACDC pipeline for the first time) and
+  a new `examples/visualize_acdc_results.py` script producing
+  training-curve, ground-truth-vs-prediction, and per-iteration
+  metric-summary plots from a completed run's outputs via
+  `miai_visualization`, previously only used by the generic pipeline
+  demo. See `docs/real_data_validation.md`'s "Visualizing results".
 
 ## Working principle
 
