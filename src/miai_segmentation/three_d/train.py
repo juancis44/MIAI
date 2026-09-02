@@ -127,6 +127,18 @@ class TrainingConfig(MIAIBaseConfig):
             it -- see ``num_classes`` above), or ``1`` for the binary
             path. A mismatched length raises :class:`SegmentationError`
             immediately, before any training happens.
+        gradient_clip_norm: Optional maximum gradient L2 norm, passed
+            straight through to :func:`torch.nn.utils.clip_grad_norm_`
+            (called on every parameter with a gradient, right after
+            ``loss.backward()`` and before ``optimizer.step()``) --
+            rescales the gradient in place if its norm exceeds this
+            value, leaving it unchanged otherwise. ``None`` (the
+            default) skips the call entirely, unchanged from this
+            config's original behavior. A common use for an unstable
+            training run (large, occasional gradient spikes that throw
+            off an otherwise-improving optimization trajectory): capping
+            the norm bounds how large a single update can be, without
+            otherwise changing the loss, learning rate, or optimizer.
     """
 
     max_epochs: int = 100
@@ -140,6 +152,7 @@ class TrainingConfig(MIAIBaseConfig):
     checkpoint_name: str = "best_model.pt"
     num_classes: int = 1
     class_weights: tuple[float, ...] | None = None
+    gradient_clip_norm: float | None = None
 
 
 def train_model(
@@ -240,6 +253,8 @@ def train_model(
             outputs = model(inputs)
             loss = loss_function(outputs, labels)
             loss.backward()
+            if config.gradient_clip_norm is not None:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), config.gradient_clip_norm)
             optimizer.step()
             epoch_loss += loss.item()
 

@@ -351,7 +351,41 @@ further at the other classes' expense). The goal: directly test
 whether giving the loss more reason to get RV/myocardium right, on top
 of the architecture that is already known to work best, moves those
 classes' Dice up without trading away LV or background quality. See
-``docs/real_data_validation.md`` for the result.
+``docs/real_data_validation.md`` for the result -- the hypothesis did
+not hold: macro test Dice fell below the eighth iteration's baseline,
+with LV (left at weight ``1.0``) taking the largest hit of the three.
+
+**Fourteenth iteration: gradient clipping, class weighting reverted.**
+The thirteenth iteration's class-weighted loss made things worse, not
+better (macro test Dice 0.7740 -> 0.7348), so this iteration reverts
+``_CLASS_WEIGHTS`` to ``None`` -- back to the eighth iteration's exact
+unweighted ``DiceLoss`` -- and tries a different, orthogonal lever
+instead: capping how large a single gradient update can be.
+``TrainingConfig`` gains ``gradient_clip_norm: float | None`` (default
+``None``, so every prior iteration's optimizer step stays byte-for-byte
+reproducible), calling ``torch.nn.utils.clip_grad_norm_`` on every
+parameter with a gradient right after ``loss.backward()`` and before
+``optimizer.step()`` -- rescaling the gradient in place if its L2 norm
+exceeds the given value, leaving it unchanged otherwise. This iteration
+sets ``_GRADIENT_CLIP_NORM = 1.0``, a conventional default for Adam
+(loose enough not to interfere with ordinary updates, tight enough to
+cap the kind of large, occasional gradient spike that could explain the
+late-training instabilities seen in several prior iterations --
+notably the eleventh and twelfth iterations' late validation-Dice
+collapses, and the ninth iteration's oscillation the cosine-annealing
+schedule was meant to smooth away). Otherwise identical to the eighth
+iteration: same full 150-patient/300-case multi-class dataset,
+patient-level split, augmentation, plain ``UNet`` architecture,
+dropout, weight decay, constant learning rate, raised ``--max-epochs``
+ceiling, and early stopping patience -- so gradient clipping is the
+*only* variable that changes versus that baseline, not a confound from
+also reverting class weighting (which happens here too, but back to a
+value -- ``None`` -- every iteration through the twelfth already used,
+not a new setting). The goal: reduce large late-training swings without
+changing what the loss rewards, and see whether a more stable
+optimization trajectory closes any of the remaining gap to the eighth
+iteration's 0.7740 test Dice, or the fourth iteration's binary-only
+0.82 ceiling. See ``docs/real_data_validation.md`` for the result.
 
 Visualization: an optional ``--visualize`` flag runs
 :class:`~miai_pipeline.stages.visualization.VisualizationStage` (the
@@ -536,18 +570,24 @@ _EARLY_STOPPING_PATIENCE = 10
 #: variable versus the eighth iteration.
 _MAX_LEARNING_RATE = 1e-3
 
-#: Per-class weight passed to ``TrainingConfig.class_weights`` -- see
-#: the module docstring's "Thirteenth iteration" section for the
-#: reasoning behind each value. Order matches this project's label
-#: convention (background=0, RV=1, myocardium=2, LV=3, see
-#: ``_prepare_case_labels``'s docstring below): background
-#: downweighted (large, easy, no benefit from more emphasis), RV
-#: weighted highest (the most consistently volatile structure across
-#: iterations 6, 8, 9, and 10, and the eighth iteration's own weakest
-#: per-class Dice), myocardium next (took the worst damage in the
-#: twelfth iteration), LV left at ``1.0`` (already the strongest
-#: per-class Dice, close to the binary ceiling).
-_CLASS_WEIGHTS = (0.5, 2.0, 1.5, 1.0)
+#: Per-class weight passed to ``TrainingConfig.class_weights`` -- the
+#: thirteenth iteration's ``(0.5, 2.0, 1.5, 1.0)`` made macro test Dice
+#: worse (0.7740 -> 0.7348, see the module docstring's "Thirteenth
+#: iteration" section), so this reverts to ``None`` -- MONAI's own
+#: unweighted default, matching every iteration through the twelfth --
+#: for the fourteenth iteration's gradient-clipping run, isolating
+#: gradient clipping as the only variable versus the eighth iteration's
+#: baseline.
+_CLASS_WEIGHTS = None
+
+#: Maximum gradient L2 norm passed to ``TrainingConfig.
+#: gradient_clip_norm`` -- see the module docstring's "Fourteenth
+#: iteration" section. ``1.0`` is a conventional default for Adam: loose
+#: enough not to interfere with ordinary updates, tight enough to cap
+#: the kind of large, occasional gradient spike consistent with the
+#: late-training instabilities (validation Dice collapses, oscillation)
+#: seen in several prior iterations.
+_GRADIENT_CLIP_NORM = 1.0
 
 #: 2D per-slice architecture (see the module docstring's "Third
 #: iteration" section for why 2D, not 3D, is the right fit for this
@@ -890,6 +930,7 @@ def run_validation(
                 device="cpu",
                 num_classes=_NUM_CLASSES,
                 class_weights=_CLASS_WEIGHTS,
+                gradient_clip_norm=_GRADIENT_CLIP_NORM,
             ),
         )
     )

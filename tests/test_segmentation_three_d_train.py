@@ -417,6 +417,37 @@ def test_train_model_class_weights_wrong_length_binary_raises(tmp_path: Path) ->
         train_model(model, train_loader, None, config, str(tmp_path / "ckpt"))
 
 
+def test_train_model_gradient_clip_norm_reaches_clip_grad_norm(tmp_path: Path) -> None:
+    """gradient_clip_norm is a new TrainingConfig field -- confirm it
+    actually reaches torch.nn.utils.clip_grad_norm_ (not just accepted
+    and ignored), called once per training batch."""
+    train_loader = _make_loader(tmp_path / "train", 2)
+    model = build_unet(_UNET_CONFIG)
+    config = TrainingConfig(max_epochs=1, device="cpu", gradient_clip_norm=1.5)
+
+    with patch("torch.nn.utils.clip_grad_norm_", wraps=torch.nn.utils.clip_grad_norm_) as mock_clip:
+        train_model(model, train_loader, None, config, str(tmp_path / "ckpt"))
+
+    assert mock_clip.call_count == 2
+    for call in mock_clip.call_args_list:
+        assert call.args[1] == pytest.approx(1.5)
+
+
+def test_train_model_gradient_clip_norm_default_none_disables_clipping(
+    tmp_path: Path,
+) -> None:
+    """gradient_clip_norm defaults to None -- confirm clip_grad_norm_ is
+    never called, unchanged from this config's original behavior."""
+    train_loader = _make_loader(tmp_path / "train", 1)
+    model = build_unet(_UNET_CONFIG)
+    config = TrainingConfig(max_epochs=1, device="cpu")
+
+    with patch("torch.nn.utils.clip_grad_norm_", wraps=torch.nn.utils.clip_grad_norm_) as mock_clip:
+        train_model(model, train_loader, None, config, str(tmp_path / "ckpt"))
+
+    mock_clip.assert_not_called()
+
+
 @pytest.mark.slow
 def test_train_model_multiclass_actually_learns_to_segment(tmp_path: Path) -> None:
     """Same intent as test_train_model_actually_learns_to_segment, multi-class."""
