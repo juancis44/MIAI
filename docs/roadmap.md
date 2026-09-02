@@ -525,6 +525,26 @@ and `inference: {roi_size: ..., ...}` as
   useful negative result, but the eighth iteration's plain, unweighted
   UNet remains the best-performing configuration found. See
   `docs/real_data_validation.md`.
+- [x] Fourteenth iteration: added `TrainingConfig.gradient_clip_norm:
+  float | None = None` (default preserves every existing config's
+  optimizer step byte-for-byte -- no existing call site affected),
+  calling `torch.nn.utils.clip_grad_norm_` right after
+  `loss.backward()` and before `optimizer.step()` when set. Reverted
+  `class_weights` to `None` (the thirteenth iteration's weighting made
+  things worse) and set `gradient_clip_norm=1.0` on the eighth
+  iteration's plain UNet baseline, motivated by the late-training
+  validation-Dice collapses seen in the eleventh and twelfth
+  iterations. Training reached a near-record validation Dice of 0.8373
+  at epoch 28 with no collapse anywhere in the run -- including at
+  epoch 23, the exact epoch the twelfth iteration collapsed at.
+  Result: macro test Dice recovered most of the thirteenth iteration's
+  loss (0.7348 -> 0.7565) but stayed below the eighth iteration's
+  baseline (0.7740), and Hausdorff distance got meaningfully worse
+  across every structure (macro 28.4mm -> 44.1mm) -- the same
+  validation-improves/boundary-suffers pattern the ninth iteration's
+  cosine annealing showed. The eighth iteration's plain, unclipped,
+  unweighted UNet remains the best-performing configuration found. See
+  `docs/real_data_validation.md`.
 
 ## Working principle
 

@@ -224,6 +224,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   unweighted `UNet` remains the best-performing configuration found.
   Full writeup in `docs/real_data_validation.md`.
 
+- **Gradient clipping**: `miai_segmentation.three_d.train.
+  TrainingConfig` (shared by `two_d`) gains a `gradient_clip_norm:
+  float | None = None` field (default `None`, so every existing
+  config's optimizer step stays byte-for-byte reproducible), calling
+  `torch.nn.utils.clip_grad_norm_` on every parameter with a gradient
+  right after `loss.backward()` and before `optimizer.step()` when set
+  -- rescaling the gradient in place if its L2 norm exceeds the given
+  value, leaving it unchanged otherwise.
+- Fourteenth ACDC validation iteration (2026-09-02): reverts
+  `_CLASS_WEIGHTS` to `None` (the thirteenth iteration's weighting made
+  macro test Dice worse, not better) and sets `_GRADIENT_CLIP_NORM =
+  1.0` on top of the eighth iteration's plain `UNet` baseline,
+  motivated by the late-training validation-Dice collapses seen in the
+  eleventh and twelfth iterations. Training reached a near-record
+  validation Dice of **0.8373 at epoch 28** with no collapse anywhere
+  in the run -- including at epoch 23, the exact epoch the twelfth
+  iteration collapsed at -- early-stopping at epoch 38. Result: macro
+  test Dice recovered most of the thirteenth iteration's loss (0.7348
+  -> **0.7565**) but remained below the eighth iteration's unweighted,
+  unclipped baseline (0.7740), and Hausdorff distance got meaningfully
+  worse across every structure (macro 28.4mm -> 44.1mm) -- the same
+  validation-improves/boundary-precision-suffers pattern the ninth
+  iteration's cosine annealing showed. Per-case variance did tighten
+  (stdev 0.097, close to the eighth iteration's 0.09) and only 1 of 60
+  test cases fell below Dice 0.5, matching the eighth iteration. The
+  eighth iteration's plain, unclipped, unweighted `UNet` remains the
+  best-performing configuration by test Dice found across this entire
+  validation effort. Full writeup in `docs/real_data_validation.md`.
+
 ## [1.0.0] - 2026-08-28
 
 First `1.0.0` release: the ACDC real-data validation effort (five

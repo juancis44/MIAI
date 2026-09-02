@@ -1144,6 +1144,104 @@ eighth iteration's plain, unweighted `UNet` remains the
 best-performing configuration found across this entire validation
 effort.
 
+## Fourteenth iteration: gradient clipping, class weighting reverted
+
+The thirteenth iteration's class-weighted loss made things worse, not
+better (macro test Dice 0.7740 -> 0.7348), so this iteration reverts
+`_CLASS_WEIGHTS` to `None` -- back to the eighth iteration's exact
+unweighted `DiceLoss` -- and tries a different, orthogonal lever
+instead: capping how large a single gradient update can be.
+`TrainingConfig` gains `gradient_clip_norm: float | None` (default
+`None`, so every prior iteration's optimizer step stays byte-for-byte
+reproducible), calling `torch.nn.utils.clip_grad_norm_` on every
+parameter with a gradient right after `loss.backward()` and before
+`optimizer.step()` -- rescaling the gradient in place if its L2 norm
+exceeds the given value, leaving it unchanged otherwise. This iteration
+sets `_GRADIENT_CLIP_NORM = 1.0`, a conventional default for Adam,
+motivated by the late-training validation-Dice collapses seen in the
+eleventh and twelfth iterations (both around epoch 21-23) and the
+ninth iteration's oscillation -- all consistent with occasional large
+gradient spikes throwing off an otherwise-improving trajectory.
+Otherwise identical to the eighth iteration: same full
+150-patient/300-case multi-class dataset, patient-level split,
+augmentation, plain `UNet` architecture, dropout, weight decay,
+constant learning rate, raised `--max-epochs` ceiling, and early
+stopping patience -- so gradient clipping is the only variable that
+changes versus that baseline.
+
+Training reached a new project-best validation Dice at the same epoch
+range the eleventh and twelfth iterations previously collapsed --
+**no collapse appeared anywhere in this run**: 0.6832 (epoch 1) climbed
+steadily through 0.8261 (epoch 9), past a brief dip at epochs 10-16,
+to 0.8290 (epoch 17, already above the eighth iteration's final best),
+0.8308 (epoch 23, the exact epoch the twelfth iteration collapsed at),
+0.8358 (epoch 24), and finally **0.8373 at epoch 28** -- essentially
+tying the thirteenth iteration's 0.8378 project-best, the two highest
+validation Dice scores of any iteration in this project. Early stopping
+fired at epoch 38 after 10 non-improving checks, keeping the epoch 28
+checkpoint.
+
+| Split | Cases | Dice (macro, foreground only) |
+|---|---|---|
+| Validation (best epoch, 28/50, early-stopped at 38) | 60 | 0.8373 |
+| Held-out test | 60 | 0.7565 |
+
+Per-class mean test metrics (all six), compared against the eighth
+iteration (the direct baseline) and the thirteenth (the previous
+lever tried, for contrast):
+
+| Metric | RV (8th / 13th / 14th) | Myo (8th / 13th / 14th) | LV (8th / 13th / 14th) | Macro (8th / 13th / 14th) |
+|---|---|---|---|---|
+| Dice | 0.6952 / 0.6902 / **0.6740** | 0.7593 / 0.7280 / **0.7468** | 0.8676 / 0.7861 / **0.8487** | 0.7740 / 0.7348 / **0.7565** |
+| Hausdorff distance (HD95, mm) | 34.1 / 46.1 / **59.8** | 29.3 / 37.4 / **40.0** | 22.0 / 46.8 / **32.4** | 28.4 / 43.4 / **44.1** |
+| IoU | 0.55 / 0.55 / **0.52** | 0.62 / 0.58 / **0.60** | 0.78 / 0.68 / **0.75** | 0.65 / 0.60 / **0.63** |
+| Sensitivity | 0.73 / 0.76 / **0.83** | 0.79 / 0.74 / **0.78** | 0.90 / 0.94 / **0.93** | 0.80 / 0.80 / **0.83** |
+| Specificity | 0.997 / 0.997 / 0.995 | 0.997 / 0.997 / 0.997 | 0.999 / 0.997 / 0.998 | 0.998 / 0.997 / 0.997 |
+| Volume similarity | 0.88 / 0.86 / **0.81** | 0.91 / 0.92 / **0.91** | 0.94 / 0.83 / **0.90** | 0.95 / 0.92 / **0.91** |
+
+**The honest read: gradient clipping recovered most of the thirteenth
+iteration's loss, and produced the most stable training curve of any
+post-eighth-iteration lever, but still landed below the eighth
+iteration's unweighted, unclipped baseline.** Macro test Dice rose from
+the thirteenth iteration's 0.7348 to **0.7565** -- most of the ground
+lost to class weighting recovered -- but remains below the eighth
+iteration's 0.7740, and Hausdorff distance got meaningfully worse
+across every structure (macro 28.4mm -> 44.1mm, RV specifically
+34.1mm -> 59.8mm, its worst Hausdorff distance of any iteration in this
+project). This is the same shape of result the ninth iteration's
+cosine annealing produced: a validation-set improvement (here, a
+near-record 0.8373, and the complete absence of any late-training
+collapse) that did not fully transfer to the test set, with boundary
+precision the specific casualty. Sensitivity improved across the board
+(macro 0.80 -> 0.83, RV 0.73 -> 0.83) -- consistent with a model that
+recovers more true-positive pixels at the cost of looser, less precise
+boundaries, the same tradeoff the ninth iteration's write-up
+identified. Per-case test Dice (60 cases) actually tightened versus
+both comparisons: stdev 0.097 (versus the thirteenth iteration's 0.122
+and close to the eighth iteration's 0.09), median 0.7737 (the highest
+median of any multi-class iteration so far), only 1 case below 0.5
+(down from the thirteenth iteration's 4, matching the eighth
+iteration). `patient142_frame12` is again the single weakest case
+(Dice 0.3625), continuing its run across every iteration so far: 0.18
+-> 0.32 -> 0.47 -> 0.26 -> 0.31 -> 0.38 -> 0.32 -> 0.33 -> 0.36.
+
+**What this confirms, and what it leaves open.** The complete absence
+of a collapse at the exact epoch (23) the twelfth iteration collapsed
+at is a real, useful signal: it's consistent with gradient clipping
+addressing at least part of the mechanism behind these late-training
+instabilities, even on an architecture (the plain `UNet`, not
+`ResAttentionUNet`) that never showed one to begin with -- a stronger
+test would be applying `gradient_clip_norm` to a rerun of the eleventh
+or twelfth iteration's own configuration, where a collapse is known to
+occur, to see whether clipping prevents it there too. On its own
+merits versus the eighth-iteration baseline, though, this iteration is
+a partial win at best: better than the thirteenth iteration's class
+weighting, tighter per-case variance, and a smoother training curve,
+but not an improvement on test Dice, and a clear regression on boundary
+precision. The eighth iteration's plain, unclipped, unweighted `UNet`
+remains the best-performing configuration by test Dice found across
+this entire validation effort.
+
 ## Reproducing this
 
 The script as it stands today runs the twelfth iteration -- multi-class,
