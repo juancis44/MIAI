@@ -385,7 +385,51 @@ not a new setting). The goal: reduce large late-training swings without
 changing what the loss rewards, and see whether a more stable
 optimization trajectory closes any of the remaining gap to the eighth
 iteration's 0.7740 test Dice, or the fourth iteration's binary-only
-0.82 ceiling. See ``docs/real_data_validation.md`` for the result.
+0.82 ceiling. See ``docs/real_data_validation.md`` for the result --
+gradient clipping recovered most of the thirteenth iteration's loss and
+visibly prevented the known epoch-21/23 collapse pattern, but macro
+test Dice (0.7565) still landed below the eighth iteration's baseline,
+and Hausdorff distance got meaningfully worse across every structure.
+
+**Fifteenth iteration: a deeper, wider, non-residual plain UNet.** Six
+consecutive training-procedure-only levers since the eighth iteration
+(cosine annealing, attention at two bottleneck widths, no attention,
+class weighting, gradient clipping) have now all failed to beat its
+plain, unweighted, unclipped result on test Dice -- strong evidence
+that configuration is at or near a local optimum for a UNet of *that
+specific shape and depth*, not necessarily for the UNet family in
+general. Every prior iteration held ``UNetConfig.channels``,
+``.strides``, and ``.num_res_units`` fixed at the eighth iteration's
+exact values (``(16, 32, 64, 128)``, ``(2, 2, 2)``, ``2``) -- the model
+capacity/depth/residual-connections lever has never actually been
+tried on its own. This iteration reverts both ``_CLASS_WEIGHTS`` and
+``_GRADIENT_CLIP_NORM`` to ``None`` (the thirteenth and fourteenth
+iterations' levers, neither of which beat the baseline) and changes
+``_ARCHITECTURE`` instead: ``num_res_units=0`` -- plain convolutional
+encoder/decoder blocks (:class:`~monai.networks.blocks.Convolution`),
+not residual units (:class:`~monai.networks.blocks.ResidualUnit`,
+every iteration through the fourteenth used) -- combined with a deeper
+(four stride-2 downsamples instead of three, ``strides=(2, 2, 2, 2)``)
+and wider (channel widths doubled at every level, ``channels=(32, 64,
+128, 256, 512)``) network than the baseline. No new library feature is
+needed for this: :class:`~miai_segmentation.two_d.models.UNetConfig`
+already exposes ``channels``/``strides``/``num_res_units`` as
+independent fields (used, until now, only to hold the eighth
+iteration's exact values fixed across every other-lever iteration).
+``_DIVISIBLE_K`` is raised from ``8`` (2 * 2 * 2) to ``16`` (2 * 2 * 2
+* 2) to match the extra downsample level -- otherwise a case's padded
+size could end up not divisible by the network's total downsampling
+factor, breaking skip connections the same way the second iteration's
+``roi_size`` bug did (see ``docs/real_data_validation.md``). Otherwise
+identical to the eighth iteration: same full 150-patient/300-case
+multi-class dataset, patient-level split, augmentation, dropout,
+weight decay, constant learning rate, raised ``--max-epochs`` ceiling,
+and early stopping patience -- so model capacity/depth is the *only*
+variable that changes versus that baseline. The goal: test whether
+more capacity and depth, without residual connections or any of the
+training-procedure levers already ruled out, can close some of the
+remaining gap to the fourth iteration's binary-only 0.82 ceiling. See
+``docs/real_data_validation.md`` for the result.
 
 Visualization: an optional ``--visualize`` flag runs
 :class:`~miai_pipeline.stages.visualization.VisualizationStage` (the
@@ -445,21 +489,25 @@ DEFAULT_PATIENTS = [f"patient{i:03d}" for i in range(1, 151)]
 #: detail survives resampling, at the cost of more voxels per case.
 _TARGET_SPACING = (2.0, 2.0, 6.0)
 
-#: Matches _ARCHITECTURE's three stride-2 downsamples (2 * 2 * 2 = 8) --
-#: real volumes resampled to a fixed physical spacing (rather than a
-#: fixed voxel grid, unlike the synthetic examples/tests) land on an
-#: arbitrary size per case, which breaks the UNet's skip connections
-#: unless every case is padded up to a multiple of this first (in-plane
-#: (X, Y) is what matters for the 2D per-slice network this iteration
-#: uses; padding Z too is harmless -- it just adds a few background-only
-#: slices). Done once on disk (see ``_pad_to_divisible``) rather than
-#: via a ``"divisible_pad"`` transform in train/val/test transforms: a
+#: Matches _ARCHITECTURE's stride-2 downsamples -- real volumes
+#: resampled to a fixed physical spacing (rather than a fixed voxel
+#: grid, unlike the synthetic examples/tests) land on an arbitrary size
+#: per case, which breaks the UNet's skip connections unless every case
+#: is padded up to a multiple of this first (in-plane (X, Y) is what
+#: matters for the 2D per-slice network this iteration uses; padding Z
+#: too is harmless -- it just adds a few background-only slices). Done
+#: once on disk (see ``_pad_to_divisible``) rather than via a
+#: ``"divisible_pad"`` transform in train/val/test transforms: a
 #: transform-only pad would apply to what the model sees during
 #: inference but not to the *unpadded* preprocessed label
 #: :class:`~miai_pipeline.stages.evaluation.EvaluationStage` reads
 #: straight off disk, causing the same prediction/ground-truth
 #: shape mismatch worked around in ``_resample_labels_to_reference``.
-_DIVISIBLE_K = 8
+#: Raised from ``8`` (2 * 2 * 2, three downsamples) to ``16`` (2 * 2 *
+#: 2 * 2, four downsamples) for the fifteenth iteration's deeper
+#: architecture -- see the module docstring's "Fifteenth iteration"
+#: section.
+_DIVISIBLE_K = 16
 
 #: Random rotation and intensity shift added on top of the second
 #: iteration's random flip -- more varied augmentation to fight the
@@ -581,37 +629,44 @@ _MAX_LEARNING_RATE = 1e-3
 _CLASS_WEIGHTS = None
 
 #: Maximum gradient L2 norm passed to ``TrainingConfig.
-#: gradient_clip_norm`` -- see the module docstring's "Fourteenth
-#: iteration" section. ``1.0`` is a conventional default for Adam: loose
-#: enough not to interfere with ordinary updates, tight enough to cap
-#: the kind of large, occasional gradient spike consistent with the
-#: late-training instabilities (validation Dice collapses, oscillation)
-#: seen in several prior iterations.
-_GRADIENT_CLIP_NORM = 1.0
+#: gradient_clip_norm`` -- the fourteenth iteration's ``1.0`` recovered
+#: most of the thirteenth iteration's lost test Dice and visibly
+#: prevented the known epoch-21/23 collapse pattern, but still landed
+#: below the eighth iteration's baseline test Dice (see the module
+#: docstring's "Fourteenth iteration" section), so this reverts to
+#: ``None`` for the fifteenth iteration's architecture-only run,
+#: isolating the deeper/wider plain UNet as the only variable versus
+#: the eighth iteration's baseline.
+_GRADIENT_CLIP_NORM = None
 
 #: 2D per-slice architecture (see the module docstring's "Third
 #: iteration" section for why 2D, not 3D, is the right fit for this
-#: data): ``kind="unet"`` -- MONAI's own ``UNet``, the eighth
-#: iteration's baseline architecture, reverted to here per the module
-#: docstring's "Thirteenth iteration" section (five consecutive
-#: post-eighth-iteration architecture/schedule levers have now all
-#: underperformed it). Same channel depth/width every iteration has
-#: used (16->32->64->128, three stride-2 levels, 2 residual units per
-#: level). ``out_channels=_NUM_CLASSES`` (up from the binary
-#: iterations' implicit ``1``) is what actually makes this a
-#: multi-class model -- see the module docstring's "Fifth iteration"
-#: section for how ``TrainingConfig``/``InferenceConfig``/
-#: ``MetricsConfig`` pick up the same ``_NUM_CLASSES`` to train, infer,
-#: and score consistently as 4-class instead of binary.
-#: ``dropout=_DROPOUT`` is unchanged from the sixth iteration.
+#: data). Six consecutive training-procedure-only levers since the
+#: eighth iteration (cosine annealing, attention at two bottleneck
+#: widths, no attention, class weighting, gradient clipping) have now
+#: all failed to beat its plain, unweighted, unclipped result -- see
+#: the module docstring's "Fifteenth iteration" section for why this
+#: iteration instead changes the architecture itself, the one lever
+#: never varied on its own since the eighth iteration:
+#: ``kind="unet"`` (still MONAI's own ``UNet``, not
+#: ``ResAttentionUNet``) with ``num_res_units=0`` -- plain
+#: convolutional encoder/decoder blocks
+#: (:class:`~monai.networks.blocks.Convolution`), not residual units
+#: (:class:`~monai.networks.blocks.ResidualUnit`, every iteration
+#: through the fourteenth used ``num_res_units=2``) -- and both deeper
+#: (one more stride-2 level, four instead of three) and wider (channel
+#: widths doubled at every level) than the eighth iteration's
+#: baseline. ``out_channels=_NUM_CLASSES`` is unchanged from the fifth
+#: iteration onward -- see the module docstring's "Fifth iteration"
+#: section. ``dropout=_DROPOUT`` is unchanged from the sixth iteration.
 _ARCHITECTURE = SegmentationModalityConfig(
     modality="two_d",
     two_d=ArchitectureConfig(
         kind="unet",
         unet=UNetConfig(
-            channels=(16, 32, 64, 128),
-            strides=(2, 2, 2),
-            num_res_units=2,
+            channels=(32, 64, 128, 256, 512),
+            strides=(2, 2, 2, 2),
+            num_res_units=0,
             out_channels=_NUM_CLASSES,
             dropout=_DROPOUT,
         ),
@@ -621,10 +676,10 @@ _ARCHITECTURE = SegmentationModalityConfig(
 #: 2D sliding-window ROI (in-plane only -- the 2D modality's inference
 #: reassembles predictions slice by slice, see
 #: :func:`~miai_segmentation.two_d.infer.run_case_inference`). Large
-#: enough to cover every padded case's (X, Y) extent in one window (the
-#: largest padded case in this dataset/spacing combination is
-#: (216, 240, ...); this is comfortably above that, and a multiple of 8
-#: to match ``_DIVISIBLE_K``). This isn't just a tuning choice -- it's
+#: enough to cover every padded case's (X, Y) extent in one window
+#: (comfortably above the largest case seen in this dataset/spacing
+#: combination, and a multiple of 16 to match the fifteenth iteration's
+#: raised ``_DIVISIBLE_K``). This isn't just a tuning choice -- it's
 #: the same correctness requirement the second, 3D-modality iteration
 #: found the hard way (see ``docs/real_data_validation.md``): the
 #: per-slice validation loop scores each slice with a single
