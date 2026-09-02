@@ -1028,6 +1028,122 @@ next single lever, or by testing this same `ResAttentionUNet`
 (attention on or off) against a lower learning rate or reduced weight
 decay.
 
+## Thirteenth iteration: class-weighted Dice loss, back on the eighth iteration's plain `UNet` baseline
+
+Four consecutive post-eighth-iteration changes (cosine annealing,
+attention at two bottleneck widths, no attention) had each
+underperformed the eighth iteration's plain regularized `UNet` --
+architecture-side levers were not paying off. Rather than a fifth
+architecture variant, this iteration returns to the eighth iteration's
+exact `UNet` baseline (`kind="unet"`, channels `(16, 32, 64, 128)`,
+`num_res_units=2`, dropout 0.2, constant learning rate 1e-3, weight
+decay 1e-5, `early_stopping_patience=10`, `--max-epochs 50`) and
+changes a single new lever instead: per-class loss weighting. Every
+prior iteration's `DiceLoss` treated all four channels (background,
+RV, myocardium, LV) equally; the seventh iteration's per-class
+breakdown and every iteration since have shown RV and myocardium
+consistently the weakest structures (RV Dice 0.6952 and Myo Dice
+0.7593 in the eighth-iteration baseline, both well below LV's 0.8676),
+so this iteration asks whether telling the loss function to care more
+about the structures it is worst at helps.
+
+`miai_segmentation.three_d.train.TrainingConfig` (shared by `two_d`)
+gains a `class_weights: tuple[float, ...] | None = None` field
+(default `None`, so every existing config keeps `DiceLoss`'s own
+unweighted behavior byte-for-byte), wired straight through to
+`DiceLoss`'s own `weight` argument. Its length is validated against
+the loss's actual channel count (`num_classes` in multi-class mode,
+`include_background=True`; `1` in binary mode) before any batch is
+iterated, so a mismatched `class_weights` tuple fails immediately with
+a clear `SegmentationError` rather than surfacing as a cryptic shape
+error mid-training. `examples/validate_acdc.py` sets
+`class_weights=(0.5, 2.0, 1.5, 1.0)` for (background, RV, myocardium,
+LV): RV weighted highest (the most volatile structure across
+iterations, and the baseline's own weakest per-class Dice), myocardium
+next (hit hardest by the twelfth iteration's failure, 0.6856),
+LV left at 1.0 (already strongest at 0.8676, close to the binary-era
+ceiling), background downweighted to 0.5 (large, easy, and no
+diagnostic value in getting more of it right).
+
+Training ran the full 50-epoch budget without early stopping firing --
+validation Dice kept setting new bests late enough that the 10-check
+patience window was never exhausted: 0.6815 (epoch 1) climbing to
+0.8241 (epoch 26), 0.8333 (epoch 34), 0.8347 (epoch 41), 0.8373 (epoch
+42), and finally **0.8378 at epoch 44**, the highest validation Dice
+of any iteration in this project. Epochs 45-50 stayed close (0.7854 to
+0.8363) without beating it, six non-improving checks short of the
+10-check patience limit when the epoch budget ran out.
+
+| Split | Cases | Dice (macro, foreground only) |
+|---|---|---|
+| Validation (best epoch, 44/50, ran full budget) | 60 | 0.8378 |
+| Held-out test | 60 | 0.7348 |
+
+Per-class mean test metrics (all six), compared against the eighth
+iteration (the direct baseline, same architecture) and the twelfth
+(the worst multi-class result so far, for contrast):
+
+| Metric | RV (8th / 12th / 13th) | Myo (8th / 12th / 13th) | LV (8th / 12th / 13th) | Macro (8th / 12th / 13th) |
+|---|---|---|---|---|
+| Dice | 0.6952 / 0.6455 / **0.6902** | 0.7593 / 0.6856 / **0.7280** | 0.8676 / 0.8288 / **0.7861** | 0.7740 / 0.7200 / **0.7348** |
+| Hausdorff distance (HD95, mm) | 34.1 / 54.5 / **46.1** | 29.3 / 54.4 / **37.4** | 22.0 / 42.1 / **46.8** | 28.4 / 50.3 / **43.4** |
+| IoU | 0.55 / 0.49 / **0.55** | 0.62 / 0.53 / **0.58** | 0.78 / 0.73 / **0.68** | 0.65 / 0.58 / **0.60** |
+| Sensitivity | 0.73 / 0.63 / **0.76** | 0.79 / 0.73 / **0.74** | 0.90 / 0.85 / **0.94** | 0.80 / 0.73 / **0.80** |
+| Specificity | 0.997 / 0.998 / 0.997 | 0.997 / 0.996 / 0.997 | 0.999 / 0.999 / 0.997 | 0.998 / 0.998 / 0.997 |
+| Volume similarity | 0.88 / 0.84 / **0.86** | 0.91 / 0.90 / **0.92** | 0.94 / 0.91 / **0.83** | 0.95 / 0.94 / **0.92** |
+
+**The honest read: class weighting did not achieve its goal.** Macro
+test Dice fell from the eighth iteration's 0.7740 to **0.7348** --
+worse than the baseline it was meant to improve on, though still well
+above the twelfth iteration's 0.7200 floor. The per-class picture
+explains why the goal was missed: RV Dice barely moved (0.6952 ->
+0.6902, essentially flat despite carrying the highest weight, 2.0) and
+myocardium actually got *worse* (0.7593 -> 0.7280, despite its weight
+of 1.5), while LV -- left at weight 1.0, already the strongest
+structure -- took the largest hit of the three (0.8676 -> **0.7861**,
+an 0.08 drop, its volume similarity also falling sharply from 0.94 to
+0.83). This is close to the opposite of the intended effect: instead
+of trading a little LV quality for meaningfully better RV/Myo, the
+loss weighting cost LV quality without buying a matching RV/Myo gain.
+Hausdorff distance did improve for RV and myocardium relative to the
+twelfth iteration (46.1mm and 37.4mm, versus 54.5mm and 54.4mm) but
+both remain worse than the eighth-iteration baseline's 34.1mm and
+29.3mm, and LV's own Hausdorff distance got worse than both prior runs
+(46.8mm, versus 22.0mm baseline and 42.1mm for the twelfth iteration)
+-- consistent with a model whose boundary precision degraded across
+the board, not one that selectively traded LV precision for RV/Myo
+precision as intended.
+
+Per-case test Dice (60 cases) had the widest spread of any iteration
+so far: mean 0.7348 (stdev 0.122, wider than the eighth iteration's
+0.09), median 0.7496, 4 cases below 0.5 (up from the eighth
+iteration's 1) and 20 below 0.7 (up from 10). `patient142_frame12` is
+once again the single weakest case (Dice 0.3292, continuing its
+volatile run across every iteration so far: 0.18 -> 0.32 -> 0.47 ->
+0.26 -> 0.31 -> 0.38 -> 0.32 -> 0.33), effectively unchanged by this
+iteration's loss weighting.
+
+**A plausible mechanism, and what it rules out.** Reweighting the Dice
+loss changes what the optimizer is rewarded for at every pixel, not
+just how the three foreground structures trade off against each
+other -- LV's drop despite an *unchanged* weight (1.0, same as every
+prior iteration) suggests the gradient signal from the up-weighted RV
+and myocardium channels crowded out capacity that would otherwise have
+kept refining LV, a structure whose boundaries (papillary muscles,
+outflow tract) are already among the harder parts of this task despite
+its historically high Dice. This is a useful negative result: it rules
+out "simple loss reweighting, applied directly and left otherwise
+unchanged, closes the RV/Myo gap for free" -- the naive expectation
+behind trying this lever first. It does not rule out class weighting
+as a direction entirely; milder weights (e.g. `(1.0, 1.5, 1.3, 1.0)`
+instead of `(0.5, 2.0, 1.5, 1.0)`), weighting Myo alone rather than
+both RV and Myo together, or combining a smaller weight with a lower
+learning rate to let the reweighted gradients settle more gently, are
+all untried variants a future iteration could isolate. For now, the
+eighth iteration's plain, unweighted `UNet` remains the
+best-performing configuration found across this entire validation
+effort.
+
 ## Reproducing this
 
 The script as it stands today runs the twelfth iteration -- multi-class,

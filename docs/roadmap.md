@@ -507,6 +507,24 @@ and `inference: {roi_size: ..., ...}` as
   metric-summary plots from a completed run's outputs via
   `miai_visualization`, previously only used by the generic pipeline
   demo. See `docs/real_data_validation.md`'s "Visualizing results".
+- [x] Thirteenth iteration: added `TrainingConfig.class_weights:
+  tuple[float, ...] | None = None` (default preserves every existing
+  config's unweighted `DiceLoss` behavior -- no existing call site
+  affected), wired straight through to `DiceLoss`'s own `weight` arg
+  and length-validated against the loss's channel count before
+  training starts. Reverted the ACDC script to the eighth iteration's
+  exact plain `UNet` baseline and set `class_weights=(0.5, 2.0, 1.5,
+  1.0)` for (background, RV, myocardium, LV), motivated by RV/Myo
+  being the consistently weakest structures since the seventh
+  iteration. Training reached a new project-best validation Dice of
+  0.8378 at epoch 44 (full 50-epoch budget, no early stopping). Result:
+  macro test Dice fell (0.7740 -> 0.7348) rather than improved -- RV
+  stayed essentially flat despite the highest weight, myocardium got
+  slightly worse despite also being up-weighted, and LV (left at
+  weight 1.0) took the largest hit of the three (0.8676 -> 0.7861). A
+  useful negative result, but the eighth iteration's plain, unweighted
+  UNet remains the best-performing configuration found. See
+  `docs/real_data_validation.md`.
 
 ## Working principle
 

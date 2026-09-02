@@ -193,6 +193,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   description in `docs/real_data_validation.md`'s "Visualizing
   results" section.
 
+- **Class-weighted Dice loss**: `miai_segmentation.three_d.train.
+  TrainingConfig` (shared by `two_d`) gains a `class_weights:
+  tuple[float, ...] | None = None` field (default `None`, so every
+  existing config keeps `DiceLoss`'s own unweighted behavior
+  byte-for-byte), wired straight through to `DiceLoss`'s own `weight`
+  argument. Its length is validated against the loss's actual channel
+  count (`num_classes` in multi-class mode, `1` in binary mode) before
+  training starts, raising `SegmentationError` immediately on a
+  mismatch.
+- Thirteenth ACDC validation iteration (2026-09-01): after four
+  consecutive architecture-side changes (cosine annealing, attention
+  at two bottleneck widths, no attention) each underperformed the
+  eighth iteration's plain regularized `UNet`, this iteration reverts
+  `examples/validate_acdc.py` to that exact baseline architecture and
+  changes a single new lever instead -- `class_weights=(0.5, 2.0, 1.5,
+  1.0)` for (background, RV, myocardium, LV), motivated by RV and
+  myocardium being the consistently weakest structures since the
+  seventh iteration's per-class breakdown. Training ran the full
+  50-epoch budget without early stopping firing, reaching a new
+  project-best validation Dice of **0.8378 at epoch 44**. Result: the
+  hypothesis did not hold -- macro test Dice fell from the eighth
+  iteration's 0.7740 to **0.7348**, with RV essentially flat (0.6952
+  -> 0.6902) despite the highest weight, myocardium slightly worse
+  (0.7593 -> 0.7280) despite also being up-weighted, and LV -- left at
+  weight 1.0 -- taking the largest hit of the three (0.8676 -> 0.7861).
+  Still well above the twelfth iteration's 0.7200 floor, but a useful
+  negative result: simple loss reweighting, applied directly, did not
+  close the RV/Myo gap for free. The eighth iteration's plain,
+  unweighted `UNet` remains the best-performing configuration found.
+  Full writeup in `docs/real_data_validation.md`.
+
 ## [1.0.0] - 2026-08-28
 
 First `1.0.0` release: the ACDC real-data validation effort (five
