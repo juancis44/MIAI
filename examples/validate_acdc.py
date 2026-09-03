@@ -428,8 +428,49 @@ and early stopping patience -- so model capacity/depth is the *only*
 variable that changes versus that baseline. The goal: test whether
 more capacity and depth, without residual connections or any of the
 training-procedure levers already ruled out, can close some of the
-remaining gap to the fourth iteration's binary-only 0.82 ceiling. See
-``docs/real_data_validation.md`` for the result.
+remaining gap to the fourth iteration's binary-only 0.82 ceiling.
+**No result**: the full 150-patient run was relaunched five times and
+never got past a handful of minutes of training -- the sandbox itself
+kept restarting mid-run (confirmed via ``uptime`` resetting to ``0``
+immediately after a training process died), not just the training
+process crashing. Git state survived every restart intact; only the
+ephemeral training process and its output did not. Since training has
+no checkpoint/resume support, every restart meant starting over from
+epoch 0, and no attempt got far enough to produce a usable checkpoint
+or metric. This iteration's code (``num_res_units=0``, the doubled
+channel widths, the extra downsample level, the raised
+``_DIVISIBLE_K``) is left out of ``_ARCHITECTURE`` -- see the
+"Sixteenth iteration" section below for the config now in place, and
+for why this deeper/wider/non-residual question is set aside rather
+than answered.
+
+**Sixteenth iteration: back to the eighth iteration's baseline
+architecture, a larger training split, and (next) cross-validation.**
+``_ARCHITECTURE`` reverts to the eighth iteration's exact, still-
+undefeated config (``channels=(16, 32, 64, 128)``, ``strides=(2, 2,
+2)``, ``num_res_units=2``) and ``_DIVISIBLE_K`` reverts to ``8`` to
+match it -- the fifteenth iteration's deeper/wider/non-residual
+variant is set aside unanswered (see above), not ruled out. Two things
+change from every iteration since the fourth: the patient-level split
+widens from 90/30/30 (val/test fractions ``0.2``/``0.2``) to
+120/15/15 (``_VAL_FRACTION``/``_TEST_FRACTION`` = ``0.1``/``0.1``) --
+more patients to train on, val/test sets still large enough (15
+patients, 30 cases each) for a stable estimate -- and the validation
+methodology itself is being expanded beyond a single fixed patient
+split: k-fold cross-validation first, then leave-one-patient-out
+(LOPO), to see how sensitive this model's reported Dice is to which
+15-30 patients happen to land in the held-out set, rather than relying
+on one arbitrarily-seeded split (``seed=42``) as every prior iteration
+has. The data split itself is, and always has been, patient-level, not
+case/image-level -- see :func:`_patient_level_split`'s docstring and
+``build_case_lists``' ``patient_ids`` return value: cases are grouped
+by patient before the train/val/test partition happens, specifically
+so a patient's ED and ES frames (the same anatomy) never land in
+different splits. Cross-validation/LOPO support does not exist yet in
+this module; how it gets built (a wrapper that reruns
+:func:`run_validation`'s preprocess-through-evaluate pipeline once per
+fold, versus a lower-level refactor) is still open. See
+``docs/real_data_validation.md`` for results as they land.
 
 Visualization: an optional ``--visualize`` flag runs
 :class:`~miai_pipeline.stages.visualization.VisualizationStage` (the
@@ -503,11 +544,13 @@ _TARGET_SPACING = (2.0, 2.0, 6.0)
 #: :class:`~miai_pipeline.stages.evaluation.EvaluationStage` reads
 #: straight off disk, causing the same prediction/ground-truth
 #: shape mismatch worked around in ``_resample_labels_to_reference``.
-#: Raised from ``8`` (2 * 2 * 2, three downsamples) to ``16`` (2 * 2 *
-#: 2 * 2, four downsamples) for the fifteenth iteration's deeper
-#: architecture -- see the module docstring's "Fifteenth iteration"
-#: section.
-_DIVISIBLE_K = 16
+#: Was raised to ``16`` (2 * 2 * 2 * 2, four downsamples) for the
+#: fifteenth iteration's deeper architecture, whose full-scale training
+#: run never finished (see the module docstring's "Fifteenth iteration"
+#: and "Sixteenth iteration" sections) -- reverted to ``8`` (2 * 2 * 2,
+#: three downsamples) here to match the eighth iteration's baseline
+#: architecture this iteration returns to.
+_DIVISIBLE_K = 8
 
 #: Random rotation and intensity shift added on top of the second
 #: iteration's random flip -- more varied augmentation to fight the
@@ -641,45 +684,54 @@ _GRADIENT_CLIP_NORM = None
 
 #: 2D per-slice architecture (see the module docstring's "Third
 #: iteration" section for why 2D, not 3D, is the right fit for this
-#: data). Six consecutive training-procedure-only levers since the
-#: eighth iteration (cosine annealing, attention at two bottleneck
-#: widths, no attention, class weighting, gradient clipping) have now
-#: all failed to beat its plain, unweighted, unclipped result -- see
-#: the module docstring's "Fifteenth iteration" section for why this
-#: iteration instead changes the architecture itself, the one lever
-#: never varied on its own since the eighth iteration:
-#: ``kind="unet"`` (still MONAI's own ``UNet``, not
-#: ``ResAttentionUNet``) with ``num_res_units=0`` -- plain
-#: convolutional encoder/decoder blocks
-#: (:class:`~monai.networks.blocks.Convolution`), not residual units
-#: (:class:`~monai.networks.blocks.ResidualUnit`, every iteration
-#: through the fourteenth used ``num_res_units=2``) -- and both deeper
-#: (one more stride-2 level, four instead of three) and wider (channel
-#: widths doubled at every level) than the eighth iteration's
-#: baseline. ``out_channels=_NUM_CLASSES`` is unchanged from the fifth
-#: iteration onward -- see the module docstring's "Fifth iteration"
-#: section. ``dropout=_DROPOUT`` is unchanged from the sixth iteration.
+#: data). The fifteenth iteration tried a deeper/wider, non-residual
+#: variant of this (``num_res_units=0``, ``channels=(32, 64, 128, 256,
+#: 512)``, ``strides=(2, 2, 2, 2)``), but its full 150-patient training
+#: run never completed -- repeated sandbox-level failures killed every
+#: attempt before a single epoch finished (see the module docstring's
+#: "Fifteenth iteration" and "Sixteenth iteration" sections), so that
+#: variant has no result to report. This reverts to the eighth
+#: iteration's exact, still-undefeated baseline: ``kind="unet"`` (MONAI's
+#: own ``UNet``), ``channels=(16, 32, 64, 128)``, ``strides=(2, 2, 2)``,
+#: ``num_res_units=2`` (residual units,
+#: :class:`~monai.networks.blocks.ResidualUnit`).
+#: ``out_channels=_NUM_CLASSES`` is unchanged from the fifth iteration
+#: onward -- see the module docstring's "Fifth iteration" section.
+#: ``dropout=_DROPOUT`` is unchanged from the sixth iteration.
 _ARCHITECTURE = SegmentationModalityConfig(
     modality="two_d",
     two_d=ArchitectureConfig(
         kind="unet",
         unet=UNetConfig(
-            channels=(32, 64, 128, 256, 512),
-            strides=(2, 2, 2, 2),
-            num_res_units=0,
+            channels=(16, 32, 64, 128),
+            strides=(2, 2, 2),
+            num_res_units=2,
             out_channels=_NUM_CLASSES,
             dropout=_DROPOUT,
         ),
     ),
 )
 
+#: Fraction of the 150 patients held out for validation -- raised split
+#: (see the module docstring's "Sixteenth iteration" section): 120
+#: train / 15 val / 15 test patients, versus the eighth-through-
+#: fifteenth iterations' 90/30/30. More training patients, fewer held
+#: out for val/test -- val/test are still large enough (15 patients each,
+#: 30 cases each) to give a stable estimate, while training gets 120
+#: instead of 90 patients (240 instead of 180 cases) to work with.
+_VAL_FRACTION = 0.1
+
+#: Fraction of the 150 patients held out for testing -- see
+#: ``_VAL_FRACTION`` above.
+_TEST_FRACTION = 0.1
+
 #: 2D sliding-window ROI (in-plane only -- the 2D modality's inference
 #: reassembles predictions slice by slice, see
 #: :func:`~miai_segmentation.two_d.infer.run_case_inference`). Large
 #: enough to cover every padded case's (X, Y) extent in one window
 #: (comfortably above the largest case seen in this dataset/spacing
-#: combination, and a multiple of 16 to match the fifteenth iteration's
-#: raised ``_DIVISIBLE_K``). This isn't just a tuning choice -- it's
+#: combination, and a multiple of ``_DIVISIBLE_K``). This isn't just a
+#: tuning choice -- it's
 #: the same correctness requirement the second, 3D-modality iteration
 #: found the hard way (see ``docs/real_data_validation.md``): the
 #: per-slice validation loop scores each slice with a single
@@ -963,8 +1015,8 @@ def run_validation(
         padded_image_paths,
         padded_label_paths,
         patient_ids,
-        val_fraction=0.2,
-        test_fraction=0.2,
+        val_fraction=_VAL_FRACTION,
+        test_fraction=_TEST_FRACTION,
         seed=42,
         manifest_path=output_dir / "manifest.json",
     )
