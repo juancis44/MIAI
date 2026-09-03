@@ -253,6 +253,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   best-performing configuration by test Dice found across this entire
   validation effort. Full writeup in `docs/real_data_validation.md`.
 
+- Fifteenth ACDC validation iteration attempt (2026-09-02/03): after six
+  consecutive training-procedure-only levers (cosine annealing,
+  attention at two bottleneck widths, no attention, class weighting,
+  gradient clipping) all failed to beat the eighth iteration's plain
+  baseline, this attempt set `_ARCHITECTURE` to a deeper (four
+  downsamples instead of three), wider (channel widths doubled),
+  non-residual (`num_res_units=0`) UNet, with `_DIVISIBLE_K` raised
+  from 8 to 16 to match. No result: the full 150-patient training run
+  was relaunched five times and never survived past a few minutes --
+  the sandbox itself restarted mid-run on four of five attempts
+  (confirmed via `uptime` resetting to `0`), a more severe failure mode
+  than an ordinary process crash. Git state survived every restart;
+  the training runs did not, and with no checkpoint/resume support
+  each restart meant losing all progress. This architecture question is
+  set aside unanswered, not ruled out. Full writeup in `docs/
+  real_data_validation.md`.
+- Sixteenth ACDC validation iteration (2026-09-03): reverts
+  `_ARCHITECTURE`/`_DIVISIBLE_K` to the eighth iteration's exact,
+  still-undefeated baseline, and widens the patient-level split from
+  90/30/30 to **120/15/15** train/val/test patients
+  (`_VAL_FRACTION`/`_TEST_FRACTION` = 0.1/0.1, both new module
+  constants). Also re-verifies (no change) that the split has always
+  been patient-level, not case/image-level. Training completed cleanly
+  this time (early-stopped at epoch 35/50, no sandbox instability).
+  Result: macro test Dice fell to **0.7367** (from the eighth
+  iteration's 0.7740 on its own 30-patient test set) -- every per-class
+  Dice and Hausdorff number moved the same direction, but the test set
+  itself is a different, smaller (15 vs. 30 patients) sample, so this
+  is not a clean "more training data hurt" finding. Per-case test Dice
+  variance widened (stdev 0.121 vs. 0.09), motivating the next planned
+  step: moving past any single fixed-seed patient split toward k-fold
+  cross-validation and leave-one-patient-out (LOPO) evaluation, neither
+  of which exists yet in this codebase. Full writeup in `docs/
+  real_data_validation.md`.
+
 ## [1.0.0] - 2026-08-28
 
 First `1.0.0` release: the ACDC real-data validation effort (five

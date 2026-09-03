@@ -1242,6 +1242,113 @@ precision. The eighth iteration's plain, unclipped, unweighted `UNet`
 remains the best-performing configuration by test Dice found across
 this entire validation effort.
 
+## Fifteenth iteration: a deeper, wider, non-residual UNet (no result)
+
+Six consecutive training-procedure-only levers since the eighth
+iteration (cosine annealing, attention at two bottleneck widths, no
+attention, class weighting, gradient clipping) all failed to beat its
+plain, unweighted, unclipped test Dice (0.7740) -- evidence that
+configuration is at or near a local optimum for a UNet of *that
+specific shape and depth*, not necessarily for the UNet family in
+general. This iteration set `_ARCHITECTURE` to a deeper (four stride-2
+downsamples instead of three), wider (channel widths doubled at every
+level: `(32, 64, 128, 256, 512)`), non-residual (`num_res_units=0` --
+plain convolutional blocks, not residual units) variant, reverting
+`_CLASS_WEIGHTS`/`_GRADIENT_CLIP_NORM` to `None` so architecture was
+the only variable versus the eighth iteration's baseline.
+
+**No result: the full 150-patient training run was relaunched five
+times and never survived past a few minutes.** The sandbox this
+project runs in restarted mid-run on four of those five attempts,
+confirmed via `uptime` resetting to `0` immediately after a training
+process died with no error trace -- a more severe failure than an
+ordinary process crash, since it happened inside a single unbroken
+polling call, not across an idle gap between conversation turns. Git
+state (commits, working tree) survived every restart intact; only the
+ephemeral training process and its `/tmp` output were lost each time.
+Training has no checkpoint/resume support, so every restart meant
+starting over from epoch 0. The furthest any attempt got was epoch 19
+of the first launch (val Dice 0.8165, a new project-best at the time)
+before dying with no trace. No attempt produced a usable checkpoint or
+test-set metric, so this deeper/wider/non-residual architecture
+question is set aside unanswered, not ruled out -- see the sixteenth
+iteration below for what was tried instead.
+
+## Sixteenth iteration: back to the baseline architecture, a larger training split
+
+With the fifteenth iteration's architecture question unresolved for
+infrastructure reasons, this iteration changes direction: revert
+`_ARCHITECTURE`/`_DIVISIBLE_K` to the eighth iteration's exact,
+still-undefeated baseline (`channels=(16, 32, 64, 128)`, `strides=(2,
+2, 2)`, `num_res_units=2`), and widen the patient-level split from
+90/30/30 train/val/test patients (`val_fraction`/`test_fraction` =
+0.2/0.2) to **120/15/15** (0.1/0.1) -- more patients for training (240
+cases instead of 180), val/test sets still large enough (15 patients,
+30 cases each) for a reasonably stable estimate. This is also a
+methodology check: confirmed the split has always been patient-level,
+not case/image-level (`_patient_level_split` groups every patient's ED
+and ES frames before partitioning, specifically so the same anatomy
+never lands in two different splits) -- unchanged by this iteration,
+just re-verified against the source. The training run itself was
+stable this time: no sandbox restarts, running to completion (early
+stopping at epoch 35/50) in just under 5 hours.
+
+Validation Dice climbed steadily with some noise typical of this
+project's runs: 0.7019 (epoch 1), 0.7902 (epoch 8), a new project-best
+**0.8211 at epoch 25**, and finally 0.8144 as the best-so-far going
+into the last stretch before early stopping fired at epoch 35 after 10
+non-improving checks.
+
+| Split | Cases | Dice (macro, foreground only) |
+|---|---|---|
+| Validation (best epoch, 25/50, early-stopped at 35) | 30 | 0.8211 |
+| Held-out test | 30 | **0.7367** |
+
+Per-class mean test metrics (all six), compared against the eighth
+iteration (same architecture, smaller/90-patient training split):
+
+| Metric | RV (8th / 16th) | Myo (8th / 16th) | LV (8th / 16th) | Macro (8th / 16th) |
+|---|---|---|---|---|
+| Dice | 0.6952 / **0.6600** | 0.7593 / **0.7129** | 0.8676 / **0.8371** | 0.7740 / **0.7367** |
+| Hausdorff distance (HD95, mm) | 34.1 / **42.1** | 29.3 / **38.0** | 22.0 / **26.2** | 28.4 / **35.4** |
+| IoU | 0.55 / **0.52** | 0.62 / **0.57** | 0.78 / **0.74** | 0.65 / **0.61** |
+| Sensitivity | 0.73 / **0.64** | 0.79 / **0.73** | 0.90 / **0.86** | 0.80 / **0.74** |
+| Specificity | 0.997 / 0.998 | 0.997 / 0.997 | 0.999 / 0.999 | 0.998 / 0.998 |
+| Volume similarity | 0.88 / **0.86** | 0.91 / 0.91 | 0.94 / 0.92 | 0.95 / **0.93** |
+
+**The honest read: a larger training set did not translate into a
+better test result -- this held-out set is simply a different, harder
+15-patient sample than the eighth iteration's 30-patient one, not
+evidence that more training data hurts.** Macro test Dice fell from
+0.7740 to 0.7367, and every per-class Dice and Hausdorff number got
+worse, not just the macro average -- a genuine regression on *this*
+test split, but the training set also grew (120 vs. 90 patients) and
+the test set shrank and changed entirely (15 different patients vs.
+30), so this is not an apples-to-apples comparison of "more data" in
+isolation; changing `val_fraction`/`test_fraction` reshuffles which
+patients land in every split, not just how many. Per-case test Dice
+(30 cases) shows why a single fixed 15-patient test split is a noisy
+estimator: mean 0.7367, stdev 0.121 (wider spread than the eighth
+iteration's 0.09), median 0.7744 (close to the eighth iteration's
+0.79), 4 cases below 0.6 (worst: 0.3776). `patient142_frame12` is once
+again the single weakest case in the whole test set, continuing its
+run across every iteration so far: 0.18 -> 0.32 -> 0.47 -> 0.26 ->
+0.31 -> 0.38 -> 0.32 -> 0.33 -> 0.36 -> **0.38** -- the same
+persistently hard slice, unmoved by any lever tried across sixteen
+iterations, training-set size included.
+
+**What this motivates.** A single fixed-seed 15-or-30-patient test
+split, whichever fraction is used, is small enough that swapping which
+patients land in it can move macro test Dice by several points on its
+own -- this iteration's regression is at least partly, maybe entirely,
+that effect rather than a real architecture-vs-data-scale finding.
+The natural next step is moving past any single fixed split: k-fold
+cross-validation first (train/evaluate across several patient-level
+folds and look at the spread, not just one number), then
+leave-one-patient-out (LOPO) evaluation, to see how sensitive this
+model's reported performance actually is to the arbitrary choice of
+which patients get held out -- neither exists yet in this codebase.
+
 ## Reproducing this
 
 The script as it stands today runs the twelfth iteration -- multi-class,

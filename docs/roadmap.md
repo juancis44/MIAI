@@ -545,6 +545,36 @@ and `inference: {roi_size: ..., ...}` as
   cosine annealing showed. The eighth iteration's plain, unclipped,
   unweighted UNet remains the best-performing configuration found. See
   `docs/real_data_validation.md`.
+- [ ] Fifteenth iteration: attempted a deeper, wider, non-residual UNet
+  (`num_res_units=0`, doubled channel widths, one extra downsample
+  level) on top of the eighth iteration's baseline, motivated by six
+  consecutive training-procedure-only levers all underperforming it.
+  No result -- the full 150-patient training run was relaunched five
+  times and never survived past a few minutes; the sandbox itself
+  restarted mid-run on four of five attempts, a more severe failure
+  than an ordinary process crash. No checkpoint/resume support meant
+  every restart lost all progress. Left unanswered, not ruled out. See
+  `docs/real_data_validation.md`.
+- [x] Sixteenth iteration: reverted `_ARCHITECTURE`/`_DIVISIBLE_K` to
+  the eighth iteration's baseline and widened the patient-level split
+  from 90/30/30 to 120/15/15 train/val/test patients (new
+  `_VAL_FRACTION`/`_TEST_FRACTION` module constants, 0.1/0.1).
+  Training completed cleanly (early-stopped at epoch 35/50, no sandbox
+  instability this run). Result: macro test Dice fell to 0.7367 (from
+  0.7740 on the eighth iteration's own 30-patient test set) with wider
+  per-case variance (stdev 0.121 vs. 0.09) -- evidence that a single
+  fixed-seed 15-30-patient test split is a noisy estimator on its own,
+  not necessarily that more training data hurt. See `docs/
+  real_data_validation.md`.
+- [ ] Seventeenth iteration (planned): k-fold cross-validation for the
+  ACDC validation pipeline -- train/evaluate across several
+  patient-level folds and report the spread (mean +/- stdev across
+  folds), not a single number from one arbitrary split. Does not exist
+  yet in this codebase.
+- [ ] Eighteenth iteration (planned): leave-one-patient-out (LOPO)
+  evaluation, once k-fold cross-validation's infrastructure exists --
+  the natural next step in reducing dependence on any one fixed
+  train/val/test partition. Does not exist yet in this codebase.
 
 ## Working principle
 
