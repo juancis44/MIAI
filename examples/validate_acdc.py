@@ -867,6 +867,69 @@ def _patient_level_split(
     return manifest
 
 
+def _patient_level_split_from_assignment(
+    image_paths: list[Path],
+    label_paths: list[Path],
+    patient_ids: list[str],
+    train_patients: set[str],
+    val_patients: set[str],
+    test_patients: set[str],
+    manifest_path: Path,
+) -> dict[str, list[object]]:
+    """Build a train/val/test manifest from an already-decided patient assignment.
+
+    Same case-grouping logic as :func:`_patient_level_split` (every case
+    belonging to a chosen patient goes to that patient's split, so a
+    patient's ED/ES frames never split apart), but the train/val/test
+    patient sets are supplied directly instead of being computed from
+    ``val_fraction``/``test_fraction`` and a single seed. This is what
+    lets :mod:`cross_validate_acdc` reuse :func:`run_validation` for
+    each k-fold/grouped-LOPO fold, where "which patients are train vs.
+    val vs. test" changes fold to fold and isn't expressible as one
+    fraction pair. Raises ``ValueError`` if any patient in
+    ``patient_ids`` is missing from all three sets, or assigned to more
+    than one -- a silent gap or overlap here would leak patients
+    between splits or drop cases without any test failing.
+    """
+    all_patients = set(patient_ids)
+    assigned = train_patients | val_patients | test_patients
+    missing = all_patients - assigned
+    if missing:
+        raise ValueError(f"Patients with no split assignment: {sorted(missing)}")
+    overlaps = (
+        (train_patients & val_patients)
+        | (train_patients & test_patients)
+        | (val_patients & test_patients)
+    )
+    if overlaps:
+        raise ValueError(f"Patients assigned to more than one split: {sorted(overlaps)}")
+
+    def _entries(patients: set[str]) -> list[object]:
+        return [
+            {"image": str(image_paths[i]), "label": str(label_paths[i])}
+            for i in range(len(patient_ids))
+            if patient_ids[i] in patients
+        ]
+
+    manifest: dict[str, list[object]] = {
+        "train": _entries(train_patients),
+        "val": _entries(val_patients),
+        "test": _entries(test_patients),
+    }
+    logger.info(
+        "Patient-level split (explicit assignment): %d train patients (%d cases), "
+        "%d val patients (%d cases), %d test patients (%d cases)",
+        len(train_patients),
+        len(manifest["train"]),
+        len(val_patients),
+        len(manifest["val"]),
+        len(test_patients),
+        len(manifest["test"]),
+    )
+    write_json(manifest, str(manifest_path))
+    return manifest
+
+
 def _resample_labels_to_reference(
     label_paths: list[Path], reference_image_paths: list[Path], out_dir: Path
 ) -> list[Path]:
@@ -951,7 +1014,11 @@ def _pad_to_divisible(
 
 
 def run_validation(
-    data_dir: Path, output_dir: Path, max_epochs: int, visualize: bool = False
+    data_dir: Path,
+    output_dir: Path,
+    max_epochs: int,
+    visualize: bool = False,
+    patient_split: dict[str, set[str]] | None = None,
 ) -> dict[str, object]:
     """Run the full preprocess -> split -> train -> infer -> evaluate pipeline.
 
@@ -966,6 +1033,17 @@ def run_validation(
             slice-montage PNG per case to ``<output_dir>/qc_montages/``.
             Off by default -- see the module docstring's
             "Visualization" section.
+        patient_split: If given, a ``{"train": {...}, "val": {...},
+            "test": {...}}`` mapping of explicit patient-ID sets,
+            passed to :func:`_patient_level_split_from_assignment`
+            instead of computing a fraction-based split. Every patient
+            discovered under ``data_dir`` must appear in exactly one
+            set. Default ``None`` preserves the original behavior
+            byte-for-byte: a single ``seed=42`` split using
+            ``_VAL_FRACTION``/``_TEST_FRACTION``. This is what lets
+            :mod:`cross_validate_acdc` reuse this function once per
+            k-fold/grouped-LOPO fold without duplicating the
+            preprocess/train/infer/evaluate pipeline.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1011,15 +1089,26 @@ def run_validation(
     context.set("preprocessed_image_paths", padded_image_paths)
     context.set("preprocessed_label_paths", padded_label_paths)
 
-    manifest = _patient_level_split(
-        padded_image_paths,
-        padded_label_paths,
-        patient_ids,
-        val_fraction=_VAL_FRACTION,
-        test_fraction=_TEST_FRACTION,
-        seed=42,
-        manifest_path=output_dir / "manifest.json",
-    )
+    if patient_split is None:
+        manifest = _patient_level_split(
+            padded_image_paths,
+            padded_label_paths,
+            patient_ids,
+            val_fraction=_VAL_FRACTION,
+            test_fraction=_TEST_FRACTION,
+            seed=42,
+            manifest_path=output_dir / "manifest.json",
+        )
+    else:
+        manifest = _patient_level_split_from_assignment(
+            padded_image_paths,
+            padded_label_paths,
+            patient_ids,
+            train_patients=patient_split["train"],
+            val_patients=patient_split["val"],
+            test_patients=patient_split["test"],
+            manifest_path=output_dir / "manifest.json",
+        )
     context.set("manifest", manifest)
     context.set("manifest_path", str(output_dir / "manifest.json"))
 
